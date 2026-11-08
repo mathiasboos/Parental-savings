@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lika delat – räkna ut föräldrakompensation</title>
+  <meta name="description" content="Räkna ut hur mycket ni behöver kompensera varandra för tiden hemma med barnen – förlorad lön, löneutveckling, deltid, vab och pension.">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <script type="module" src="assets/js/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#app">Hoppa till innehållet</a>
+
+  <header class="site-header">
+    <div class="container site-header__inner">
+      <a class="brand" href="./">
+        <svg class="brand__logo" viewBox="0 0 40 28" aria-hidden="true">
+          <circle cx="14" cy="14" r="12" class="logo-you"></circle>
+          <circle cx="26" cy="14" r="12" class="logo-partner"></circle>
+        </svg>
+        <span class="brand__name">Lika delat</span>
+        <span class="brand__tagline" id="brand-tagline">Kalkylator för jämlik livsinkomst</span>
+      </a>
+      <button type="button" class="lang-toggle" id="lang-toggle">English</button>
+    </div>
+  </header>
+
+  <main id="app" class="container" tabindex="-1">
+    <noscript>
+      <p>Kalkylatorn behöver JavaScript. / The calculator needs JavaScript.</p>
+    </noscript>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p id="footer-text">Lika delat är en fristående kalkylator. Resultatet är en uppskattning och inte finansiell rådgivning.</p>
+    </div>
+  </footer>
+
+  <dialog class="dialog" id="help-dialog" aria-labelledby="help-title">
+    <div class="dialog__panel">
+      <button type="button" class="icon-button dialog__close" aria-label="Stäng">×</button>
+      <div class="dialog__content"></div>
+    </div>
+  </dialog>
+</body>
+</html>
