@@ -882,6 +882,14 @@ main:focus {
   padding-right: 52px;
 }
 
+.dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
 .fact {
   background: var(--surface-2);
   border-radius: var(--radius-small);
@@ -2842,10 +2850,12 @@ const sv = {
   'actions.adjust': 'Justera beräkningen',
   'actions.copy': 'Kopiera länk',
   'actions.copied': 'Länken är kopierad',
-  'actions.copyFailed': 'Kunde inte kopiera. Kopiera adressen i webbläsaren i stället.',
+  'actions.copyFailed': 'Länken kunde inte kopieras automatiskt. Markera och kopiera den här:',
   'actions.print': 'Skriv ut',
   'actions.restart': 'Börja om',
-  'actions.restartConfirm': 'Vill du börja om? Dina svar rensas.',
+  'actions.restartTitle': 'Vill du börja om?',
+  'actions.restartText': 'Dina svar rensas.',
+  'actions.cancel': 'Avbryt',
   'actions.toTop': 'Till resultatet',
 
   'adjust.title': 'Justera beräkningen',
@@ -3176,10 +3186,12 @@ const en = {
   'actions.adjust': 'Adjust the calculation',
   'actions.copy': 'Copy link',
   'actions.copied': 'Link copied',
-  'actions.copyFailed': 'Could not copy. Copy the address from the browser instead.',
+  'actions.copyFailed': 'The link could not be copied automatically. Select and copy it here:',
   'actions.print': 'Print',
   'actions.restart': 'Start over',
-  'actions.restartConfirm': 'Do you want to start over? Your answers will be cleared.',
+  'actions.restartTitle': 'Do you want to start over?',
+  'actions.restartText': 'Your answers will be cleared.',
+  'actions.cancel': 'Cancel',
   'actions.toTop': 'To the result',
 
   'adjust.title': 'Adjust the calculation',
@@ -3582,8 +3594,10 @@ function renderHero(ctx, result) {
   options.map((n) => h('option', { value: String(n), selected: selected === n }, formatYears(n))),
   h('option', { value: 'retirement', selected: selected === null }, t('result.untilRetirement', { n: savings.maxYears })));
 
-  // A link to a local file only works on this computer, so it is not offered.
-  const canShare = window.location.protocol !== 'file:';
+  // A link to a local file only works on this computer, and a page embedded in
+  // another page can neither be linked to nor printed – so those are not offered.
+  const embedded = window.self !== window.top;
+  const canShare = !embedded && window.location.protocol !== 'file:';
 
   return [
     h('div', { class: 'hero__main' },
@@ -3596,7 +3610,9 @@ function renderHero(ctx, result) {
         canShare
           ? h('button', { type: 'button', class: 'button button--ghost button--small', id: 'copy-link', onclick: (e) => copyLink(e.currentTarget, ctx) }, t('actions.copy'))
           : null,
-        h('button', { type: 'button', class: 'button button--ghost button--small', id: 'print', onclick: () => window.print() }, t('actions.print')),
+        embedded
+          ? null
+          : h('button', { type: 'button', class: 'button button--ghost button--small', id: 'print', onclick: () => window.print() }, t('actions.print')),
         h('button', { type: 'button', class: 'button button--ghost button--small', id: 'restart', onclick: () => ctx.restart() }, t('actions.restart')))),
     even ? null : h('div', { class: 'suggest' },
       h('h2', { class: 'suggest__title' }, t('suggest.title')),
@@ -3646,7 +3662,8 @@ async function copyLink(button, ctx) {
     await navigator.clipboard.writeText(url);
     button.textContent = t('actions.copied');
   } catch {
-    window.prompt(t('actions.copyFailed'), url);
+    ctx.showLink(url);
+    return;
   }
   setTimeout(() => { if (button.isConnected) button.textContent = original; }, 2500);
 }
@@ -4851,13 +4868,55 @@ function openHelp({ title, paragraphs, fact }) {
   if (fact) {
     content.append(h('div', { class: 'fact' }, h('p', { class: 'fact__title' }, t('wizard.factTitle')), h('p', {}, t(fact))));
   }
+  showDialog();
+}
+
+function showDialog() {
   helpDialog.querySelector('.dialog__close').setAttribute('aria-label', t('wizard.close'));
   if (typeof helpDialog.showModal === 'function') helpDialog.showModal();
   else helpDialog.setAttribute('open', '');
 }
 
+function closeDialog() {
+  if (typeof helpDialog.close === 'function') helpDialog.close();
+  else helpDialog.removeAttribute('open');
+}
+
+/** A confirmation built into the page – browser prompts are not always available. */
+function openConfirm({ title, text, confirmLabel, onConfirm }) {
+  const content = helpDialog.querySelector('.dialog__content');
+  clear(content);
+  content.append(
+    h('h2', { class: 'dialog__title', id: 'help-title' }, title),
+    h('p', {}, text),
+    h('div', { class: 'dialog__actions' },
+      h('button', { type: 'button', class: 'button button--ghost', onclick: closeDialog }, t('actions.cancel')),
+      h('button', {
+        type: 'button',
+        class: 'button button--primary',
+        onclick: () => {
+          closeDialog();
+          onConfirm();
+        },
+      }, confirmLabel)));
+  showDialog();
+}
+
+/** Show a link to copy by hand when the clipboard is not available. */
+function openLink(url) {
+  const content = helpDialog.querySelector('.dialog__content');
+  clear(content);
+  const field = h('input', { class: 'input', type: 'text', readonly: true, value: url, 'aria-label': t('actions.copy'), onfocus: (e) => e.target.select() });
+  content.append(
+    h('h2', { class: 'dialog__title', id: 'help-title' }, t('actions.copy')),
+    h('p', {}, t('actions.copyFailed')),
+    field);
+  showDialog();
+  field.focus();
+}
+
 helpDialog.addEventListener('click', (e) => {
-  if (e.target === helpDialog || e.target.closest('.dialog__close')) helpDialog.close();
+  if (e.target === helpDialog || e.target.closest('.dialog__close')) closeDialog();
 });
 
 // ---------------------------------------------------------------------------
@@ -4875,14 +4934,21 @@ const resultContext = {
     else updateResults(app, resultContext);
   },
   restart() {
-    if (!window.confirm(t('actions.restartConfirm'))) return;
-    state.input = blankInput();
-    state.partnerAgeLinked = true;
-    state.hasSaved = false;
-    try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
-    go('intro');
+    openConfirm({
+      title: t('actions.restartTitle'),
+      text: t('actions.restartText'),
+      confirmLabel: t('actions.restart'),
+      onConfirm: () => {
+        state.input = blankInput();
+        state.partnerAgeLinked = true;
+        state.hasSaved = false;
+        try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+        go('intro');
+      },
+    });
   },
   shareUrl,
+  showLink: openLink,
 };
 
 // ---------------------------------------------------------------------------

@@ -491,13 +491,55 @@ function openHelp({ title, paragraphs, fact }) {
   if (fact) {
     content.append(h('div', { class: 'fact' }, h('p', { class: 'fact__title' }, t('wizard.factTitle')), h('p', {}, t(fact))));
   }
+  showDialog();
+}
+
+function showDialog() {
   helpDialog.querySelector('.dialog__close').setAttribute('aria-label', t('wizard.close'));
   if (typeof helpDialog.showModal === 'function') helpDialog.showModal();
   else helpDialog.setAttribute('open', '');
 }
 
+function closeDialog() {
+  if (typeof helpDialog.close === 'function') helpDialog.close();
+  else helpDialog.removeAttribute('open');
+}
+
+/** A confirmation built into the page – browser prompts are not always available. */
+function openConfirm({ title, text, confirmLabel, onConfirm }) {
+  const content = helpDialog.querySelector('.dialog__content');
+  clear(content);
+  content.append(
+    h('h2', { class: 'dialog__title', id: 'help-title' }, title),
+    h('p', {}, text),
+    h('div', { class: 'dialog__actions' },
+      h('button', { type: 'button', class: 'button button--ghost', onclick: closeDialog }, t('actions.cancel')),
+      h('button', {
+        type: 'button',
+        class: 'button button--primary',
+        onclick: () => {
+          closeDialog();
+          onConfirm();
+        },
+      }, confirmLabel)));
+  showDialog();
+}
+
+/** Show a link to copy by hand when the clipboard is not available. */
+function openLink(url) {
+  const content = helpDialog.querySelector('.dialog__content');
+  clear(content);
+  const field = h('input', { class: 'input', type: 'text', readonly: true, value: url, 'aria-label': t('actions.copy'), onfocus: (e) => e.target.select() });
+  content.append(
+    h('h2', { class: 'dialog__title', id: 'help-title' }, t('actions.copy')),
+    h('p', {}, t('actions.copyFailed')),
+    field);
+  showDialog();
+  field.focus();
+}
+
 helpDialog.addEventListener('click', (e) => {
-  if (e.target === helpDialog || e.target.closest('.dialog__close')) helpDialog.close();
+  if (e.target === helpDialog || e.target.closest('.dialog__close')) closeDialog();
 });
 
 // ---------------------------------------------------------------------------
@@ -515,14 +557,21 @@ const resultContext = {
     else updateResults(app, resultContext);
   },
   restart() {
-    if (!window.confirm(t('actions.restartConfirm'))) return;
-    state.input = blankInput();
-    state.partnerAgeLinked = true;
-    state.hasSaved = false;
-    try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
-    go('intro');
+    openConfirm({
+      title: t('actions.restartTitle'),
+      text: t('actions.restartText'),
+      confirmLabel: t('actions.restart'),
+      onConfirm: () => {
+        state.input = blankInput();
+        state.partnerAgeLinked = true;
+        state.hasSaved = false;
+        try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+        go('intro');
+      },
+    });
   },
   shareUrl,
+  showLink: openLink,
 };
 
 // ---------------------------------------------------------------------------

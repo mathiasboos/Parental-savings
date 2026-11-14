@@ -89,8 +89,10 @@ function renderHero(ctx, result) {
   options.map((n) => h('option', { value: String(n), selected: selected === n }, formatYears(n))),
   h('option', { value: 'retirement', selected: selected === null }, t('result.untilRetirement', { n: savings.maxYears })));
 
-  // A link to a local file only works on this computer, so it is not offered.
-  const canShare = window.location.protocol !== 'file:';
+  // A link to a local file only works on this computer, and a page embedded in
+  // another page can neither be linked to nor printed – so those are not offered.
+  const embedded = window.self !== window.top;
+  const canShare = !embedded && window.location.protocol !== 'file:';
 
   return [
     h('div', { class: 'hero__main' },
@@ -103,7 +105,9 @@ function renderHero(ctx, result) {
         canShare
           ? h('button', { type: 'button', class: 'button button--ghost button--small', id: 'copy-link', onclick: (e) => copyLink(e.currentTarget, ctx) }, t('actions.copy'))
           : null,
-        h('button', { type: 'button', class: 'button button--ghost button--small', id: 'print', onclick: () => window.print() }, t('actions.print')),
+        embedded
+          ? null
+          : h('button', { type: 'button', class: 'button button--ghost button--small', id: 'print', onclick: () => window.print() }, t('actions.print')),
         h('button', { type: 'button', class: 'button button--ghost button--small', id: 'restart', onclick: () => ctx.restart() }, t('actions.restart')))),
     even ? null : h('div', { class: 'suggest' },
       h('h2', { class: 'suggest__title' }, t('suggest.title')),
@@ -153,7 +157,8 @@ async function copyLink(button, ctx) {
     await navigator.clipboard.writeText(url);
     button.textContent = t('actions.copied');
   } catch {
-    window.prompt(t('actions.copyFailed'), url);
+    ctx.showLink(url);
+    return;
   }
   setTimeout(() => { if (button.isConnected) button.textContent = original; }, 2500);
 }
