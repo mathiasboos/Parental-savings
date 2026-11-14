@@ -67,6 +67,11 @@ test/                       unit tests (node:test)
 
 ### Questions
 
+There are two ways to answer, with the same questions and the same result:
+**the guide** asks one question at a time with explanations, and **the single
+page** (*Fyll i allt på en sida*) shows all questions at once with a live result
+at the bottom. You can switch between them without losing your answers.
+
 Age · both parents' monthly salary before the first parental leave · collective
 agreement / parental pay (Ja / Nej / Vet ej, per parent) · who takes most vab ·
 part time (percentage and years, per parent) · number of children and your age
