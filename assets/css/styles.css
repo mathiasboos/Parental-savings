@@ -963,26 +963,50 @@ main:focus {
   margin-top: 12px;
 }
 
-.hero__savings {
+.suggest {
   display: flex;
   flex-direction: column;
   gap: 10px;
   background: var(--surface-2);
   border-radius: 18px;
-  padding: 22px 24px;
+  padding: 22px;
   align-self: start;
 }
 
-.hero__savings-title {
+.suggest__title {
   font-size: 1rem;
   font-weight: 600;
   color: var(--ink-2);
 }
 
-.hero__monthly {
-  font-size: 1.9rem;
+.suggest__option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+
+.suggest__label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.suggest__value {
+  font-size: 1.7rem;
   font-weight: 700;
   letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.suggest__or {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1;
 }
 
 .hero__note {
@@ -1011,8 +1035,8 @@ main:focus {
     flex: 1 1 auto;
   }
 
-  .hero__savings {
-    padding: 18px;
+  .suggest {
+    padding: 16px;
   }
 }
 
@@ -1289,6 +1313,100 @@ main:focus {
 .data-table tfoot td {
   font-weight: 700;
   border-bottom: 0;
+}
+
+.data-table tr.is-total th,
+.data-table tr.is-total td {
+  font-weight: 700;
+}
+
+/* Step by step */
+.explain__parts {
+  margin-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.explain__part {
+  border-bottom: 1px solid var(--line);
+}
+
+.explain__part > summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  cursor: pointer;
+  padding: 14px 4px;
+  font-weight: 600;
+  list-style: none;
+}
+
+.explain__part > summary::-webkit-details-marker {
+  display: none;
+}
+
+.explain__name::before {
+  content: "+";
+  display: inline-block;
+  width: 1.2em;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.explain__part[open] .explain__name::before {
+  content: "−";
+}
+
+.explain__amount {
+  color: var(--ink-2);
+  font-weight: 600;
+  text-align: right;
+}
+
+.explain__part > .table-scroll {
+  margin-top: 0;
+}
+
+.explain__table .num {
+  width: 9.5rem;
+}
+
+.explain__table th[scope="row"] {
+  font-weight: 400;
+  white-space: normal;
+  min-width: 14rem;
+}
+
+.explain__table tr.is-total th[scope="row"] {
+  font-weight: 700;
+}
+
+@media (max-width: 560px) {
+  .explain__table {
+    font-size: 0.82rem;
+  }
+
+  .explain__table th,
+  .explain__table td {
+    padding: 8px 4px;
+  }
+
+  .explain__table .num {
+    width: 5.6rem;
+    white-space: normal;
+  }
+
+  .explain__table th[scope="row"] {
+    min-width: 7rem;
+  }
+}
+
+.explain__note {
+  color: var(--ink-2);
+  font-size: 0.92rem;
+  padding: 12px 10px 18px;
+  max-width: 78ch;
 }
 
 /* Facts */

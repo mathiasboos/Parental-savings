@@ -529,6 +529,16 @@ const resultContext = {
 // Boot
 // ---------------------------------------------------------------------------
 
+// The brand is the way back to the start page; a plain link would leave a
+// standalone file opened from disk.
+document.querySelector('.brand').addEventListener('click', (e) => {
+  e.preventDefault();
+  if (state.view !== 'intro') {
+    state.hasSaved = state.view === 'result';
+    go('intro');
+  }
+});
+
 document.getElementById('lang-toggle').addEventListener('click', () => {
   setLanguage(getLanguage() === 'sv' ? 'en' : 'sv');
   save();

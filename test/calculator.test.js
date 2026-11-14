@@ -135,18 +135,75 @@ test('public pension is only counted when enabled and outside barnårsrätt year
   assert.ok(rowsByKey(noCredit).publicPension.amount > rowsByKey(on).publicPension.amount);
 });
 
-test('savings plan reaches the target', () => {
-  const target = 500000;
-  const plan = savingsPlan(target, 20, 20, 0);
-  close(plan.monthly, target / 240, 1e-6);
-  close(plan.lumpSum, target, 1e-6);
+test('savings plan: the monthly amount has the same present value as the lump sum', () => {
+  const lumpSum = 300000;
+  const noReturn = savingsPlan(lumpSum, 10, 0);
+  close(noReturn.monthly, lumpSum / 120, 1e-6);
+  close(noReturn.totalPaid, lumpSum, 1e-6);
 
-  const rate = 0.04;
-  const growing = savingsPlan(target, 20, 5, rate);
+  const rate = 0.05;
+  const plan = savingsPlan(lumpSum, 10, rate);
   const i = Math.pow(1 + rate, 1 / 12) - 1;
-  const fv = growing.monthly * ((Math.pow(1 + i, 60) - 1) / i) * Math.pow(1 + rate, 15);
-  close(fv, target, 1e-3);
-  close(growing.lumpSum * Math.pow(1 + rate, 20), target, 1e-3);
+  let presentValue = 0;
+  for (let m = 1; m <= 120; m += 1) presentValue += plan.monthly / Math.pow(1 + i, m);
+  close(presentValue, lumpSum, 1e-3);
+  assert.ok(plan.totalPaid > lumpSum);
+  assert.equal(plan.months, 120);
+});
+
+test('the total is the lump sum, and the monthly suggestion follows the chosen period', () => {
+  const input = family({ children: [{ yourAgeAtBirth: 31, monthsYou: 15, monthsPartner: 4 }] });
+  const r = calculate(input);
+  close(r.savings.lumpSum, r.total, 1e-6);
+  assert.equal(r.savings.years, 10);
+  close(r.savings.monthly, savingsPlan(r.total, 10, DEFAULT_ASSUMPTIONS.savingsReturn).monthly, 1e-6);
+
+  const short = calculate({ ...input, savingsYears: 5 });
+  assert.ok(short.savings.monthly > r.savings.monthly);
+  const untilRetirement = calculate({ ...input, savingsYears: null });
+  assert.equal(untilRetirement.savings.years, DEFAULT_ASSUMPTIONS.retirementAge - 35);
+});
+
+test('pension is valued today: a premium lost in the past has grown with the return', () => {
+  // Only the leave affects pension; no agreement → 4.5 % of the salary, no waiver.
+  const isolate = { wagePenalty: 0, vabDaysPerChildYear: 0, inflation: 0, salaryGrowth: 0 };
+  const parent = { age: 40, salary: 40000, agreement: 'no' };
+  const r = calculate(family({
+    you: parent,
+    partner: parent,
+    children: [{ yourAgeAtBirth: 30, monthsYou: 12, monthsPartner: 0 }],
+    assumptions: isolate,
+  }));
+  const premium = 0.045 * 40000;
+  let expected = 0;
+  for (let m = 0; m < 12; m += 1) expected += premium * Math.pow(1.065, 10 - (m + 0.5) / 12);
+  const pension = rowsByKey(r).occupationalPension;
+  close(pension.you, expected, 1);
+  close(pension.amount, expected / 2, 1);
+
+  // The same capital at retirement, 27 years from now.
+  close(r.pension.you.atRetirement, expected * Math.pow(1.065, 27), 1);
+  assert.ok(r.pension.you.perMonth > 0);
+});
+
+test('the explanation adds up to the rows', () => {
+  const r = calculate(family({
+    you: { age: 38, salary: 38000, agreement: 'no', partTimePercent: 75, partTimeYears: 4 },
+    children: [{ yourAgeAtBirth: 30, monthsYou: 14, monthsPartner: 4 }],
+    vabShareYou: 0.7,
+  }));
+  const rows = rowsByKey(r);
+  for (const who of ['you', 'partner']) {
+    const e = r.explain[who];
+    close(e.leave.lossPerMonth * e.leave.months, rows.leave[who], 1);
+    close(e.leave.salary - e.leave.benefit, e.leave.lossPerMonth, 1e-6);
+    close(e.vab.lossPerDay * e.vab.days, rows.vab[who], 1);
+    close(e.career.full * e.career.share, rows.career[who], 1);
+    close(e.pension.leave + e.pension.partTime + e.pension.vab + e.pension.career, rows.occupationalPension[who], 1);
+  }
+  close(r.explain.you.partTime.lossPerMonth * 48, rows.partTime.you, 1);
+  close(r.explain.beyondHalf.leave, 5, 1e-9);
+  close(r.explain.beyondHalf.vab, 11 * 8 * 0.2, 1e-9);
 });
 
 test('normalizeInput clamps and fills in defaults', () => {

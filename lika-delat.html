@@ -1,0 +1,4952 @@
+<!DOCTYPE html>
+<!-- Lika delat, fristående version. Skapad av scripts/build-standalone.mjs – ändra källfilerna, inte den här filen. -->
+<html lang="sv">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lika delat – räkna ut föräldrakompensation</title>
+  <meta name="description" content="Räkna ut hur mycket ni behöver kompensera varandra för tiden hemma med barnen – förlorad lön, löneutveckling, deltid, vab och pension.">
+  <meta name="color-scheme" content="light dark">
+  <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MCAyOCI+PGNpcmNsZSBjeD0iMTQiIGN5PSIxNCIgcj0iMTIiIGZpbGw9IiMyYTc4ZDYiIGZpbGwtb3BhY2l0eT0iMC45Ii8+PGNpcmNsZSBjeD0iMjYiIGN5PSIxNCIgcj0iMTIiIGZpbGw9IiNlYjY4MzQiIGZpbGwtb3BhY2l0eT0iMC44NSIvPjwvc3ZnPgo=">
+  <style>
+/* Lika delat – styles
+ * Tokens first, then layout, components and print.
+ * Chart colours: you = blue, partner = orange (validated for colour-vision
+ * deficiencies in light and dark mode).
+ */
+
+:root {
+  color-scheme: light;
+  --page: #f4f4f1;
+  --surface: #fcfcfb;
+  --surface-2: #f0efec;
+  --ink: #15171a;
+  --ink-2: #52514e;
+  --muted: #6b6964;
+  --line: #e1e0d9;
+  --line-strong: #c3c2b7;
+  --you: #2a78d6;
+  --partner: #eb6834;
+  --you-wash: rgba(42, 120, 214, 0.1);
+  --partner-wash: rgba(235, 104, 52, 0.1);
+  --button: #15171a;
+  --button-ink: #ffffff;
+  --focus: #2a78d6;
+  --danger: #b42318;
+  --shadow: 0 1px 2px rgba(11, 11, 11, 0.04), 0 8px 24px rgba(11, 11, 11, 0.06);
+  --radius: 16px;
+  --radius-small: 10px;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --page: #0f0f0e;
+    --surface: #1a1a19;
+    --surface-2: #232321;
+    --ink: #f0efec;
+    --ink-2: #c3c2b7;
+    --muted: #a3a29b;
+    --line: #2c2c2a;
+    --line-strong: #4a4a46;
+    --you: #3987e5;
+    --partner: #d95926;
+    --you-wash: rgba(57, 135, 229, 0.16);
+    --partner-wash: rgba(217, 89, 38, 0.16);
+    --button: #f0efec;
+    --button-ink: #15171a;
+    --focus: #6da7ec;
+    --danger: #f97066;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+h1, h2, h3 {
+  line-height: 1.2;
+  margin: 0;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.container {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+.skip-link {
+  position: absolute;
+  left: 12px;
+  top: -60px;
+  z-index: 100;
+  padding: 10px 14px;
+  border-radius: var(--radius-small);
+  background: var(--button);
+  color: var(--button-ink);
+}
+
+.skip-link:focus {
+  top: 12px;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Header & footer                                                          */
+/* ------------------------------------------------------------------------ */
+
+.site-header {
+  padding: 18px 0;
+}
+
+.site-header__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  min-width: 0;
+}
+
+.brand__logo {
+  width: 40px;
+  height: 28px;
+  flex: none;
+}
+
+.logo-you {
+  fill: var(--you);
+  fill-opacity: 0.9;
+}
+
+.logo-partner {
+  fill: var(--partner);
+  fill-opacity: 0.85;
+  mix-blend-mode: multiply;
+}
+
+@media (prefers-color-scheme: dark) {
+  .logo-partner {
+    mix-blend-mode: screen;
+  }
+}
+
+.brand__name {
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: -0.01em;
+}
+
+.brand__tagline {
+  color: var(--muted);
+  font-size: 0.9rem;
+  padding-left: 10px;
+  border-left: 1px solid var(--line-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lang-toggle {
+  flex: none;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.lang-toggle:hover {
+  background: var(--surface-2);
+}
+
+main {
+  flex: 1;
+  padding-bottom: 48px;
+}
+
+main:focus {
+  outline: none;
+}
+
+.site-footer {
+  border-top: 1px solid var(--line);
+  padding: 20px 0 28px;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+@media (max-width: 640px) {
+  .brand__tagline {
+    display: none;
+  }
+}
+
+/* ------------------------------------------------------------------------ */
+/* Buttons & inputs                                                         */
+/* ------------------------------------------------------------------------ */
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 48px;
+  padding: 0 22px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+}
+
+.button:active {
+  transform: translateY(1px);
+}
+
+.button--primary {
+  background: var(--button);
+  color: var(--button-ink);
+}
+
+.button--primary:hover {
+  opacity: 0.9;
+}
+
+.button--ghost {
+  background: transparent;
+  color: var(--ink);
+  border-color: var(--line-strong);
+}
+
+.button--ghost:hover {
+  background: var(--surface-2);
+}
+
+.button--small {
+  min-height: 38px;
+  padding: 0 16px;
+  font-size: 0.9rem;
+}
+
+.button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.icon-button {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-weight: 700;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.icon-button:hover {
+  background: var(--surface-2);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field__label {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.field__hint {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.field__error {
+  color: var(--danger);
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+}
+
+.field-row--tight {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.input,
+.select {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 14px;
+  border-radius: var(--radius-small);
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+.input:hover,
+.select:hover {
+  border-color: var(--muted);
+}
+
+.input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.input::placeholder {
+  color: var(--muted);
+}
+
+.select--inline {
+  width: auto;
+  min-height: 40px;
+  padding: 6px 12px;
+}
+
+.input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.input-wrap .input {
+  padding-right: 80px;
+}
+
+.input-wrap__unit {
+  position: absolute;
+  right: 14px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  pointer-events: none;
+}
+
+.checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.checkbox input {
+  width: 20px;
+  height: 20px;
+  margin: 2px 0 0;
+  flex: none;
+  accent-color: var(--you);
+}
+
+.checkbox label {
+  font-size: 0.95rem;
+}
+
+/* Pills (radio buttons) */
+.pills {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.pills__legend {
+  font-weight: 600;
+  margin-bottom: 8px;
+  padding: 0;
+}
+
+.pills__options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.pill {
+  position: relative;
+}
+
+.pill input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  margin: 0;
+  pointer-events: none;
+}
+
+.pill label {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 20px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.pill label:hover {
+  background: var(--surface-2);
+}
+
+.pill input:checked + label {
+  background: var(--button);
+  border-color: var(--button);
+  color: var(--button-ink);
+}
+
+.pill input:focus-visible + label {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Slider */
+.slider {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.slider__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
+.slider__label {
+  font-weight: 600;
+}
+
+.slider__value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.slider__input {
+  --fill: 50%;
+  width: 100%;
+  height: 32px;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.slider__input::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to right, var(--ink) var(--fill), var(--line-strong) var(--fill));
+}
+
+.slider__input::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line-strong);
+}
+
+.slider__input::-moz-range-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--ink);
+}
+
+.slider__input::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 28px;
+  height: 28px;
+  margin-top: -12px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+
+.slider__input::-moz-range-thumb {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+
+.slider__input:focus-visible {
+  outline: none;
+}
+
+.slider__input:focus-visible::-webkit-slider-thumb {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.slider__input:focus-visible::-moz-range-thumb {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Stepper */
+.stepper {
+  display: inline-flex;
+  align-items: center;
+  gap: 18px;
+  align-self: flex-start;
+}
+
+.stepper__button {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.stepper__button:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+
+.stepper__button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.stepper__value {
+  min-width: 2ch;
+  text-align: center;
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Intro                                                                    */
+/* ------------------------------------------------------------------------ */
+
+.eyebrow {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.intro {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  align-items: center;
+  gap: 48px;
+  padding: 48px 0 24px;
+}
+
+.intro__text {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.intro h1 {
+  font-size: clamp(2rem, 4vw, 2.9rem);
+  outline: none;
+}
+
+.lead {
+  font-size: 1.15rem;
+  color: var(--ink-2);
+  max-width: 60ch;
+}
+
+.intro__points {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.intro__points li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.intro__points li::before {
+  content: "";
+  width: 10px;
+  height: 10px;
+  flex: none;
+  border-radius: 50%;
+  background: linear-gradient(90deg, var(--you) 50%, var(--partner) 50%);
+}
+
+.intro__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.intro__privacy {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.intro__art svg {
+  width: 100%;
+  max-width: 420px;
+  display: block;
+  margin: 0 auto;
+}
+
+.art-you {
+  fill: var(--you);
+  fill-opacity: 0.18;
+  stroke: var(--you);
+  stroke-width: 2;
+}
+
+.art-partner {
+  fill: var(--partner);
+  fill-opacity: 0.18;
+  stroke: var(--partner);
+  stroke-width: 2;
+}
+
+.art-overlap {
+  fill: var(--surface);
+  fill-opacity: 0.5;
+}
+
+.art-text {
+  font: 700 30px var(--font);
+  fill: var(--ink);
+}
+
+@media (max-width: 820px) {
+  .intro {
+    grid-template-columns: 1fr;
+    gap: 24px;
+    padding-top: 24px;
+  }
+
+  .intro__art {
+    order: -1;
+  }
+
+  .intro__art svg {
+    max-width: 220px;
+  }
+}
+
+/* ------------------------------------------------------------------------ */
+/* Wizard                                                                   */
+/* ------------------------------------------------------------------------ */
+
+.wizard {
+  padding: 24px 0;
+}
+
+.question {
+  max-width: 680px;
+  margin: 0 auto;
+  background: var(--surface);
+  border-radius: 24px;
+  box-shadow: var(--shadow);
+  padding: 28px 32px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.question__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.question__progress {
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.progress {
+  display: flex;
+  gap: 6px;
+}
+
+.progress__dot {
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--line);
+}
+
+.progress__dot.is-done {
+  background: var(--ink-2);
+}
+
+.progress__dot.is-current {
+  background: linear-gradient(90deg, var(--you), var(--partner));
+}
+
+.question__body {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  min-height: 220px;
+}
+
+.question__title {
+  font-size: clamp(1.5rem, 3vw, 1.9rem);
+  outline: none;
+}
+
+.question__sub {
+  color: var(--ink-2);
+  margin-top: -10px;
+}
+
+.question__nav {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.part-time {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.child-leave {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 16px 18px 18px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.child-leave__legend {
+  font-weight: 700;
+  padding: 0 6px;
+}
+
+@media (max-width: 560px) {
+  .question {
+    padding: 20px 18px 22px;
+    border-radius: 18px;
+  }
+
+  .question__nav .button {
+    flex: 1;
+  }
+}
+
+/* ------------------------------------------------------------------------ */
+/* Help dialog                                                              */
+/* ------------------------------------------------------------------------ */
+
+.dialog {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  max-width: min(640px, calc(100vw - 32px));
+  width: 100%;
+  color: var(--ink);
+}
+
+.dialog::backdrop {
+  background: rgba(11, 11, 11, 0.45);
+}
+
+.dialog__panel {
+  position: relative;
+  background: var(--surface);
+  border-radius: 20px;
+  padding: 28px 28px 30px;
+  box-shadow: var(--shadow);
+}
+
+.dialog__close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+}
+
+.dialog__content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dialog__title {
+  font-size: 1.35rem;
+  padding-right: 52px;
+}
+
+.fact {
+  background: var(--surface-2);
+  border-radius: var(--radius-small);
+  padding: 14px 16px;
+}
+
+.fact__title {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Results                                                                  */
+/* ------------------------------------------------------------------------ */
+
+.results {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding-top: 8px;
+  padding-bottom: 72px;
+}
+
+.card {
+  background: var(--surface);
+  border-radius: 24px;
+  box-shadow: var(--shadow);
+  padding: 28px;
+  min-width: 0;
+}
+
+.card__title {
+  font-size: 1.3rem;
+}
+
+.card__sub {
+  color: var(--ink-2);
+  margin-top: 6px;
+  font-size: 0.95rem;
+}
+
+.results__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+@media (max-width: 900px) {
+  .results__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Hero */
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 32px;
+  padding: 36px;
+}
+
+.hero__main {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hero__direction {
+  font-size: clamp(1.3rem, 2.5vw, 1.6rem);
+  font-weight: 600;
+  outline: none;
+}
+
+.hero__amount {
+  font-size: clamp(3rem, 7vw, 4.5rem);
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+}
+
+.hero__lead {
+  color: var(--ink-2);
+  max-width: 52ch;
+}
+
+.hero__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.suggest {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--surface-2);
+  border-radius: 18px;
+  padding: 22px;
+  align-self: start;
+}
+
+.suggest__title {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+.suggest__option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+
+.suggest__label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.suggest__value {
+  font-size: 1.7rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.suggest__or {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.hero__note {
+  color: var(--ink-2);
+  font-size: 0.92rem;
+}
+
+.field--inline {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+}
+
+.field--inline .select {
+  max-width: 100%;
+}
+
+@media (max-width: 820px) {
+  .hero {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 24px;
+  }
+
+  .hero__actions .button {
+    flex: 1 1 auto;
+  }
+
+  .suggest {
+    padding: 16px;
+  }
+}
+
+/* Legend & swatches */
+.legend {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  padding: 0;
+  margin: 16px 0 0;
+  font-size: 0.9rem;
+  color: var(--ink-2);
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.swatch {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  flex: none;
+  vertical-align: -1px;
+}
+
+.swatch--you,
+.swatch--toYou {
+  background: var(--you);
+}
+
+.swatch--partner,
+.swatch--toPartner {
+  background: var(--partner);
+}
+
+/* Bars */
+.chart {
+  position: relative;
+  margin-top: 18px;
+}
+
+.bar {
+  display: block;
+  height: 12px;
+  border-radius: 0 4px 4px 0;
+  flex: none;
+}
+
+.bar--you,
+.bar--toYou {
+  background: var(--you);
+}
+
+.bar--partner,
+.bar--toPartner {
+  background: var(--partner);
+}
+
+.bar--empty {
+  width: 0;
+}
+
+.bar-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.bar-list__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 8.5rem;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.bar-list__row--total {
+  border-bottom: 0;
+  font-weight: 700;
+}
+
+.bar-list__row--total .bar-list__track {
+  border-left-color: transparent;
+}
+
+.bar-list__label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.bar-list__name {
+  font-weight: 600;
+}
+
+.bar-list__desc {
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.bar-list__track {
+  display: flex;
+  align-items: center;
+  border-left: 1px solid var(--line-strong);
+  min-height: 28px;
+}
+
+.bar-list__value {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  text-align: right;
+  white-space: nowrap;
+  font-weight: 600;
+}
+
+.bar-list__dir {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+@media (max-width: 560px) {
+  .bar-list__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 6px 12px;
+  }
+
+  .bar-list__track {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+
+  .bar-list__row--total .bar-list__track {
+    display: none;
+  }
+}
+
+/* Paired bars (you vs partner) */
+.pairs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.pair {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.pair__label {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.pair__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-left: 1px solid var(--line-strong);
+  min-height: 18px;
+}
+
+.pair__bar .bar {
+  width: calc((100% - 8.5rem) * var(--v, 0));
+  min-width: 2px;
+}
+
+.pair__bar .bar--empty {
+  min-width: 0;
+}
+
+.pair__value {
+  font-size: 0.85rem;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.compare__totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 24px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.compare__totals p {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Tooltip */
+.tooltip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 5;
+  min-width: 200px;
+  max-width: 280px;
+  padding: 10px 12px;
+  border-radius: var(--radius-small);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  font-size: 0.85rem;
+  pointer-events: none;
+}
+
+.tooltip__title {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.tooltip__line {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--ink-2);
+}
+
+/* Disclosure & table */
+.disclosure {
+  margin-top: 18px;
+}
+
+.disclosure > summary {
+  cursor: pointer;
+  font-weight: 600;
+  padding: 6px 0;
+}
+
+.table-scroll {
+  overflow-x: auto;
+  margin-top: 10px;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.data-table th,
+.data-table td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.data-table .num {
+  text-align: right;
+}
+
+.data-table thead th {
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.data-table tfoot th,
+.data-table tfoot td {
+  font-weight: 700;
+  border-bottom: 0;
+}
+
+.data-table tr.is-total th,
+.data-table tr.is-total td {
+  font-weight: 700;
+}
+
+/* Step by step */
+.explain__parts {
+  margin-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.explain__part {
+  border-bottom: 1px solid var(--line);
+}
+
+.explain__part > summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  cursor: pointer;
+  padding: 14px 4px;
+  font-weight: 600;
+  list-style: none;
+}
+
+.explain__part > summary::-webkit-details-marker {
+  display: none;
+}
+
+.explain__name::before {
+  content: "+";
+  display: inline-block;
+  width: 1.2em;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.explain__part[open] .explain__name::before {
+  content: "−";
+}
+
+.explain__amount {
+  color: var(--ink-2);
+  font-weight: 600;
+  text-align: right;
+}
+
+.explain__part > .table-scroll {
+  margin-top: 0;
+}
+
+.explain__table .num {
+  width: 9.5rem;
+}
+
+.explain__table th[scope="row"] {
+  font-weight: 400;
+  white-space: normal;
+  min-width: 14rem;
+}
+
+.explain__table tr.is-total th[scope="row"] {
+  font-weight: 700;
+}
+
+@media (max-width: 560px) {
+  .explain__table {
+    font-size: 0.82rem;
+  }
+
+  .explain__table th,
+  .explain__table td {
+    padding: 8px 4px;
+  }
+
+  .explain__table .num {
+    width: 5.6rem;
+    white-space: normal;
+  }
+
+  .explain__table th[scope="row"] {
+    min-width: 7rem;
+  }
+}
+
+.explain__note {
+  color: var(--ink-2);
+  font-size: 0.92rem;
+  padding: 12px 10px 18px;
+  max-width: 78ch;
+}
+
+/* Facts */
+.facts__list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px 24px;
+  margin: 16px 0 0;
+}
+
+.facts__item dt {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.facts__item dd {
+  margin: 2px 0 0;
+  font-weight: 600;
+}
+
+/* Adjust form */
+.adjust__form {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  margin-top: 22px;
+}
+
+.adjust__people {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+@media (max-width: 760px) {
+  .adjust__people {
+    grid-template-columns: 1fr;
+  }
+}
+
+.adjust__person,
+.adjust__section,
+.assumptions__group {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.adjust__person {
+  background: var(--surface-2);
+  border-radius: 18px;
+  padding: 18px 20px 20px;
+}
+
+.adjust__legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 1.1rem;
+  padding: 0;
+  float: left;
+  width: 100%;
+  margin-bottom: 2px;
+}
+
+.adjust__legend + * {
+  clear: both;
+}
+
+.adjust__heading {
+  font-weight: 700;
+  font-size: 1.1rem;
+  padding: 0;
+  margin-bottom: 4px;
+}
+
+.adjust__heading--small {
+  font-size: 1rem;
+}
+
+.child-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.child-row {
+  display: grid;
+  grid-template-columns: 90px repeat(3, minmax(0, 1fr)) auto;
+  align-items: end;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.child-row__title {
+  font-weight: 700;
+  align-self: center;
+}
+
+.child-row__remove {
+  align-self: end;
+}
+
+@media (max-width: 760px) {
+  .child-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .child-row__title {
+    grid-column: 1 / -1;
+  }
+
+  .child-row__remove {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+}
+
+#add-child,
+#reset-assumptions {
+  align-self: flex-start;
+}
+
+#vab-share {
+  max-width: 220px;
+}
+
+.choice-cards {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 640px) {
+  .choice-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+.choice-card {
+  position: relative;
+}
+
+.choice-card input {
+  position: absolute;
+  top: 20px;
+  left: 18px;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--you);
+}
+
+.choice-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  height: 100%;
+  padding: 16px 18px 16px 48px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+
+.choice-card input:checked + label {
+  border-color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--ink);
+}
+
+.choice-card input:focus-visible + label {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.choice-card__title {
+  font-weight: 700;
+}
+
+.choice-card__desc {
+  color: var(--ink-2);
+  font-size: 0.9rem;
+}
+
+.assumptions {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+  display: flex;
+  flex-direction: column;
+}
+
+.assumptions[open] {
+  gap: 16px;
+}
+
+.assumptions > summary {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.assumptions__groups {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 24px 28px;
+}
+
+/* Ways & method */
+.ways,
+.method {
+  padding: 20px 4px 0;
+}
+
+.section-title {
+  font-size: 1.5rem;
+}
+
+.section-sub {
+  color: var(--ink-2);
+  margin-top: 6px;
+  max-width: 70ch;
+}
+
+.ways__list {
+  list-style: none;
+  margin: 20px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+
+.ways__item {
+  display: flex;
+  gap: 14px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  padding: 18px;
+  box-shadow: var(--shadow);
+}
+
+.ways__number {
+  width: 34px;
+  height: 34px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  background: linear-gradient(135deg, var(--you-wash), var(--partner-wash));
+  border: 1px solid var(--line-strong);
+}
+
+.ways__title {
+  font-size: 1rem;
+  margin-bottom: 4px;
+}
+
+.ways__item p {
+  color: var(--ink-2);
+  font-size: 0.92rem;
+}
+
+.method__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 22px 32px;
+  margin-top: 20px;
+}
+
+.method__item h3 {
+  font-size: 1.05rem;
+  margin-bottom: 6px;
+}
+
+.method__item p {
+  color: var(--ink-2);
+  font-size: 0.95rem;
+}
+
+.method__item p + p {
+  margin-top: 8px;
+}
+
+/* Sticky summary */
+.sticky-summary {
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 20;
+  width: min(560px, calc(100vw - 24px));
+  background: var(--button);
+  color: var(--button-ink);
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+  padding: 8px 8px 8px 22px;
+}
+
+.sticky-summary__inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sticky-summary__text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sticky-summary .button {
+  background: var(--button-ink);
+  color: var(--button);
+  border: 0;
+  flex: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ------------------------------------------------------------------------ */
+/* Print                                                                    */
+/* ------------------------------------------------------------------------ */
+
+@media print {
+  :root {
+    --page: #fff;
+    --surface: #fff;
+    --surface-2: #f4f4f4;
+    --shadow: none;
+  }
+
+  .site-header .lang-toggle,
+  .skip-link,
+  .hero__actions,
+  .adjust,
+  .sticky-summary,
+  .tooltip,
+  .field--inline {
+    display: none !important;
+  }
+
+  .card,
+  .ways__item {
+    border: 1px solid #ddd;
+    break-inside: avoid;
+  }
+
+  .disclosure > *:not(summary) {
+    display: block;
+  }
+
+  .bar {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}
+  </style>
+  <script type="module">
+const __modules = {};
+
+// ---- assets/js/calculator.js ----
+__modules["assets/js/calculator.js"] = (() => {
+/**
+ * Lika delat – beräkningsmodell för föräldrakompensation.
+ *
+ * Pure functions without any DOM access so the model can be unit tested in Node.
+ *
+ * The model estimates how much each parent loses in lifetime income because of
+ * time spent at home with the children, split into five parts:
+ *
+ *   1. Föräldraledighet – salary not covered by föräldrapenning/föräldralön
+ *   2. Deltid           – salary lost while working part time
+ *   3. Vab              – salary deductions not covered by tillfällig föräldrapenning
+ *   4. Löneutveckling   – lower salary growth for the parent who is home more
+ *   5. Pension          – lost occupational pension premiums (ITP1-like),
+ *                         optionally also the public pension
+ *
+ * Compensation principle (default, "excess"): the parent who has been home more
+ * than half of the time is compensated for the time beyond 50 %, valued at that
+ * parent's own loss. Alternative ("equal"): both parents' losses are computed
+ * and the difference is split equally.
+ *
+ * Everything is valued TODAY, so that the parts can be added up into one
+ * amount that can be paid now:
+ *
+ *   - Salary: nominal SEK (salaries follow `salaryGrowth` from the year the
+ *     entered salary refers to) converted to today's money with `inflation`.
+ *   - Pension: every lost premium is valued at what it would be worth in the
+ *     pension account today – grown with `pensionReturn` if it was lost in the
+ *     past, discounted if it will be lost in the future. Inkomstpension rights
+ *     follow the income index (`salaryGrowth`) instead.
+ *
+ * The sum is the lump sum that evens things out today. `savingsPlan` turns it
+ * into an equivalent fixed monthly amount.
+ */
+
+const DEFAULT_ASSUMPTIONS = Object.freeze({
+  /** Year for which priceBaseAmount and incomeBaseAmount apply. */
+  baseYear: 2026,
+  /** Prisbasbelopp (PBB) for baseYear. */
+  priceBaseAmount: 59200,
+  /** Inkomstbasbelopp (IBB) for baseYear. */
+  incomeBaseAmount: 83400,
+  /** Yearly inflation – indexes the price base amount outside the known table. */
+  inflation: 0.02,
+  /** Yearly nominal salary growth (Charly: salaries follow inflation). */
+  salaryGrowth: 0.02,
+
+  retirementAge: 67,
+  /** Nominal yearly return on pension capital after fees and tax. */
+  pensionReturn: 0.065,
+  /** Years the pension is paid out – used to express the loss per month. */
+  payoutYears: 20,
+
+  // Föräldrapenning (parental benefit)
+  /** Föräldrapenning on sjukpenningnivå: 80 % of SGI × 0.97. */
+  benefitRate: 0.776,
+  /** SGI ceiling for föräldrapenning in price base amounts. */
+  parentalBenefitCapPBB: 10,
+  /** Share of the days at home on which föräldrapenning is drawn. */
+  benefitDaysShare: 0.6,
+  /** Days per child paid on sjukpenningnivå. */
+  sicknessLevelDays: 390,
+  /** Days per child paid on lägstanivå. */
+  minimumLevelDays: 90,
+  /** Benefit per day on lägstanivå (SEK). */
+  minimumLevelPerDay: 180,
+  /** Föräldralön (collective agreement): total income as share of salary. */
+  topUpLevel: 0.9,
+  /** Months per child with föräldralön. */
+  topUpMonths: 6,
+
+  // Vab (tillfällig föräldrapenning)
+  vabDaysPerChildYear: 8,
+  /** First and last (exclusive) child age with vab days. */
+  vabFromAge: 1,
+  vabToAge: 12,
+  vabCapPBB: 7.5,
+  workDaysPerYear: 260,
+
+  // Löneutveckling
+  /** Salary level lost by the parent who is at home with the children. */
+  wagePenalty: 0.025,
+  /** Years after the first birth the lower salary level lasts. */
+  wagePenaltyYears: 5,
+  /** If true the lower salary level lasts until retirement. */
+  wagePenaltyPermanent: false,
+
+  // Tjänstepension (ITP1-like)
+  itpLowRate: 0.045,
+  itpHighRate: 0.3,
+  /** Yearly salary threshold in income base amounts (7.5 IBB). */
+  itpThresholdIBB: 7.5,
+  /** Premium rate without collective agreement. */
+  noAgreementRate: 0.045,
+  /** Premiebefrielse: premiums continue during parental leave (agreement). */
+  premiumWaiver: true,
+  premiumWaiverMonths: 13,
+
+  // Allmän pension (optional add-on)
+  publicPension: false,
+  /** Inkomstpension: 16 % of the pensionable income, follows the income index. */
+  incomePensionRate: 0.16,
+  /** Premiepension: 2.5 % of the pensionable income, invested in funds. */
+  premiumPensionRate: 0.025,
+  /** Pensionsgrundande inkomst ceiling in income base amounts. */
+  publicPensionCapIBB: 7.5,
+  /** Allmän pensionsavgift deducted before pensionsgrundande inkomst. */
+  generalPensionFee: 0.07,
+  /** Barnårsrätt: public pension is compensated during the child's first years. */
+  childYearCredit: true,
+  childYearCreditYears: 4,
+
+  // Suggestion: return used to turn the lump sum into a monthly amount
+  savingsReturn: 0.065,
+});
+
+/** Known prisbasbelopp per year (SCB/Försäkringskassan). */
+const PRICE_BASE_AMOUNTS = Object.freeze({
+  2010: 42400, 2011: 42800, 2012: 44000, 2013: 44500, 2014: 44400,
+  2015: 44500, 2016: 44300, 2017: 44800, 2018: 45500, 2019: 46500,
+  2020: 47300, 2021: 47600, 2022: 48300, 2023: 52500, 2024: 57300,
+  2025: 58800, 2026: 59200,
+});
+
+/** Known inkomstbasbelopp per year (Pensionsmyndigheten). */
+const INCOME_BASE_AMOUNTS = Object.freeze({
+  2010: 51100, 2011: 52100, 2012: 54600, 2013: 56600, 2014: 56900,
+  2015: 58100, 2016: 59300, 2017: 61500, 2018: 62500, 2019: 64400,
+  2020: 66800, 2021: 68200, 2022: 71000, 2023: 74300, 2024: 76200,
+  2025: 80600, 2026: 83400,
+});
+
+/** Your share of the vab days for the three quick answers. */
+const VAB_SPLITS = Object.freeze({ you: 0.7, equal: 0.5, partner: 0.3 });
+
+const PART_TIME_OPTIONS = Object.freeze([100, 90, 80, 75, 50, 25]);
+
+const COMPONENT_KEYS = Object.freeze([
+  'leave',
+  'partTime',
+  'vab',
+  'career',
+  'occupationalPension',
+  'publicPension',
+]);
+
+const LIMITS = Object.freeze({
+  age: [18, 66],
+  salary: [0, 1000000],
+  months: [0, 36],
+  partTimePercent: [0, 100],
+  partTimeYears: [0, 40],
+  children: [0, 8],
+});
+
+/** Default number of years for the monthly saving suggestion. */
+const DEFAULT_SAVINGS_YEARS = 10;
+
+const DAYS_PER_MONTH = 365 / 12;
+const EPSILON = 0.5;
+
+function createDefaultInput(currentYear = new Date().getFullYear()) {
+  return {
+    currentYear,
+    principle: 'excess',
+    you: createPerson(),
+    partner: createPerson(),
+    children: [createChild(31)],
+    vabShareYou: VAB_SPLITS.equal,
+    /** Years of monthly saving; null = until retirement. */
+    savingsYears: DEFAULT_SAVINGS_YEARS,
+    assumptions: { ...DEFAULT_ASSUMPTIONS },
+  };
+}
+
+function createPerson(overrides = {}) {
+  return {
+    age: 35,
+    salary: 40000,
+    agreement: 'unknown',
+    partTimePercent: 100,
+    partTimeYears: 0,
+    partTimeStartAge: null,
+    ...overrides,
+  };
+}
+
+function createChild(yourAgeAtBirth, monthsYou = 15, monthsPartner = 4) {
+  return { yourAgeAtBirth, monthsYou, monthsPartner };
+}
+
+// ---------------------------------------------------------------------------
+// Input normalisation
+// ---------------------------------------------------------------------------
+
+function num(value, fallback) {
+  const n = typeof value === 'string' ? Number(value.replace(/[\s ]/g, '').replace(',', '.')) : Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function normalizePerson(raw = {}, fallback) {
+  const p = { ...fallback, ...raw };
+  const startAge = p.partTimeStartAge === null || p.partTimeStartAge === '' || p.partTimeStartAge === undefined
+    ? null
+    : clamp(num(p.partTimeStartAge, null) ?? 0, 14, 70);
+  return {
+    age: clamp(Math.round(num(p.age, fallback.age)), ...LIMITS.age),
+    salary: clamp(num(p.salary, fallback.salary), ...LIMITS.salary),
+    agreement: ['yes', 'no', 'unknown'].includes(p.agreement) ? p.agreement : 'unknown',
+    partTimePercent: clamp(num(p.partTimePercent, 100), ...LIMITS.partTimePercent),
+    partTimeYears: clamp(num(p.partTimeYears, 0), ...LIMITS.partTimeYears),
+    partTimeStartAge: Number.isFinite(startAge) ? startAge : null,
+  };
+}
+
+function normalizeInput(raw = {}) {
+  const defaults = createDefaultInput(raw.currentYear ?? new Date().getFullYear());
+  const assumptions = { ...DEFAULT_ASSUMPTIONS };
+  for (const [key, value] of Object.entries(raw.assumptions ?? {})) {
+    if (!(key in DEFAULT_ASSUMPTIONS)) continue;
+    if (typeof DEFAULT_ASSUMPTIONS[key] === 'boolean') assumptions[key] = Boolean(value);
+    else assumptions[key] = Math.max(0, num(value, DEFAULT_ASSUMPTIONS[key]));
+  }
+  assumptions.retirementAge = clamp(Math.round(assumptions.retirementAge), 55, 75);
+  assumptions.benefitDaysShare = clamp(assumptions.benefitDaysShare, 0, 1);
+  assumptions.topUpLevel = clamp(assumptions.topUpLevel, 0, 1);
+  assumptions.benefitRate = clamp(assumptions.benefitRate, 0, 1);
+  assumptions.wagePenalty = clamp(assumptions.wagePenalty, 0, 1);
+  assumptions.vabToAge = Math.max(assumptions.vabFromAge, assumptions.vabToAge);
+
+  const you = normalizePerson(raw.you, defaults.you);
+  const partner = normalizePerson(raw.partner, { ...defaults.partner, age: you.age });
+
+  const rawChildren = Array.isArray(raw.children) ? raw.children : defaults.children;
+  const children = rawChildren.slice(0, LIMITS.children[1]).map((c) => ({
+    yourAgeAtBirth: clamp(Math.round(num(c?.yourAgeAtBirth, you.age)), 14, you.age + 5),
+    monthsYou: clamp(num(c?.monthsYou, 0), ...LIMITS.months),
+    monthsPartner: clamp(num(c?.monthsPartner, 0), ...LIMITS.months),
+  }));
+
+  // undefined → the default period, null → until retirement.
+  let savingsYears = DEFAULT_SAVINGS_YEARS;
+  if (raw.savingsYears === null || raw.savingsYears === '') savingsYears = null;
+  else if (raw.savingsYears !== undefined) savingsYears = clamp(Math.round(num(raw.savingsYears, DEFAULT_SAVINGS_YEARS)), 1, 50);
+
+  return {
+    currentYear: Math.round(num(raw.currentYear, defaults.currentYear)),
+    principle: raw.principle === 'equal' ? 'equal' : 'excess',
+    you,
+    partner,
+    children,
+    vabShareYou: clamp(num(raw.vabShareYou, defaults.vabShareYou), 0, 1),
+    savingsYears,
+    assumptions,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Small vector helpers. A loss has four parts, all valued today:
+//   income          lost salary, in today's money
+//   occupational    lost occupational pension premiums, as fund value today
+//   incomePension   lost inkomstpension rights, indexed to today
+//   premiumPension  lost premiepension rights, as fund value today
+// ---------------------------------------------------------------------------
+
+const PARTS = ['income', 'occupational', 'incomePension', 'premiumPension'];
+const combine = (a, b, f) => Object.fromEntries(PARTS.map((k) => [k, f(a[k], b[k])]));
+const zero = () => combine({}, {}, () => 0);
+const add = (a, b) => combine(a, b, (x, y) => x + y);
+const sub = (a, b) => combine(a, b, (x, y) => x - y);
+const scale = (a, k) => combine(a, a, (x) => x * k);
+const sum = (a) => PARTS.reduce((acc, k) => acc + a[k], 0);
+const publicOf = (a) => a.incomePension + a.premiumPension;
+
+// ---------------------------------------------------------------------------
+// Context: timeline, base amounts and people
+// ---------------------------------------------------------------------------
+
+function baseAmountAt(table, t, growth) {
+  const year = Math.floor(t);
+  if (table[year] !== undefined) return table[year];
+  const years = Object.keys(table).map(Number);
+  const first = Math.min(...years);
+  const last = Math.max(...years);
+  if (year < first) return table[first] * Math.pow(1 + growth, year - first);
+  return table[last] * Math.pow(1 + growth, year - last);
+}
+
+function buildContext(input) {
+  const A = input.assumptions;
+  const Y = input.currentYear;
+  const births = input.children.map((c) => Y - (input.you.age - c.yourAgeAtBirth));
+  const order = births.map((b, i) => i).sort((a, b) => births[a] - births[b]);
+  const firstBirth = births.length ? Math.min(...births) : Y;
+
+  // Base amounts: use the known table, but let the base year values in the
+  // assumptions override (so a user can update them) and extrapolate beyond.
+  const pbbTable = { ...PRICE_BASE_AMOUNTS, [A.baseYear]: A.priceBaseAmount };
+  const ibbTable = { ...INCOME_BASE_AMOUNTS, [A.baseYear]: A.incomeBaseAmount };
+  const pbbAt = (t) => baseAmountAt(pbbTable, t, A.inflation);
+  const ibbAt = (t) => baseAmountAt(ibbTable, t, A.salaryGrowth);
+
+  const ctx = { A, Y, births, order, firstBirth, pbbAt, ibbAt };
+  ctx.inChildYears = (t) => A.childYearCredit
+    && births.some((b) => t >= b && t < b + A.childYearCreditYears);
+  return ctx;
+}
+
+function itpPremium(S, threshold, A) {
+  return A.itpLowRate * Math.min(S, threshold) + A.itpHighRate * Math.max(0, S - threshold);
+}
+
+function buildPerson(p, ctx) {
+  const { A, Y } = ctx;
+  const yRef = Math.min(ctx.firstBirth, Y);
+  const retirementYear = Y + (A.retirementAge - p.age);
+  const hasAgreement = p.agreement !== 'no';
+
+  const yearsToRetirement = Math.max(0, A.retirementAge - p.age);
+  const person = {
+    age: p.age,
+    hasAgreement,
+    retirementYear,
+    yearsToRetirement,
+    salaryAt: (t) => p.salary * Math.pow(1 + A.salaryGrowth, t - yRef),
+    active: (t) => t < retirementYear,
+    /** Nominal SEK at time t → today's money. */
+    toToday: (t) => Math.pow(1 + A.inflation, Y - t),
+    /** A fund premium paid at t → what it is worth in the pension account today. */
+    fundValueToday: (t) => Math.pow(1 + A.pensionReturn, Y - t),
+    /** Inkomstpension rights earned at t → their value today (income index). */
+    indexValueToday: (t) => Math.pow(1 + A.salaryGrowth, Y - t),
+    /** Value today → capital at retirement, in today's money. */
+    fundToRetirement: Math.pow((1 + A.pensionReturn) / (1 + A.inflation), yearsToRetirement),
+    indexToRetirement: Math.pow((1 + A.salaryGrowth) / (1 + A.inflation), yearsToRetirement),
+    /** Occupational pension premium per month for monthly salary S. */
+    occupational: (S, t) => (hasAgreement
+      ? itpPremium(S, (A.itpThresholdIBB * ctx.ibbAt(t)) / 12, A)
+      : A.noAgreementRate * S),
+    /** Pensionable income per month in the public system for monthly income S. */
+    pensionBase: (S, t) => {
+      const cap = (A.publicPensionCapIBB * ctx.ibbAt(t)) / 12;
+      return Math.min(Math.max(0, S) * (1 - A.generalPensionFee), cap);
+    },
+  };
+  person.salaryToday = person.salaryAt(Y) * person.toToday(Y);
+  /** Pension capital at retirement (today's money) for a loss valued today. */
+  person.atRetirement = (loss) => (loss.occupational + loss.premiumPension) * person.fundToRetirement
+    + loss.incomePension * person.indexToRetirement;
+  return person;
+}
+
+/** Add the public pension loss for `baseLoss` SEK of lost pensionable income at t. */
+function addPublicLoss(loss, person, ctx, t, baseLoss) {
+  const { A } = ctx;
+  if (!A.publicPension || ctx.inChildYears(t)) return;
+  loss.incomePension += A.incomePensionRate * baseLoss * person.indexValueToday(t);
+  loss.premiumPension += A.premiumPensionRate * baseLoss * person.fundValueToday(t);
+}
+
+/**
+ * Add the pension loss for `frac` months in which the pensionable salary drops
+ * from `full` to `reduced` (occupational) and `publicReduced` (public pension,
+ * where social insurance benefits count as income).
+ */
+function addPensionLoss(loss, person, ctx, t, full, reduced, publicReduced = reduced, frac = 1) {
+  loss.occupational += (person.occupational(full, t) - person.occupational(reduced, t))
+    * person.fundValueToday(t) * frac;
+  addPublicLoss(loss, person, ctx, t, (person.pensionBase(full, t) - person.pensionBase(publicReduced, t)) * frac);
+}
+
+/** Collects the figures behind a loss so the result can be explained. */
+const newTrace = () => ({ months: 0, salary: 0, days: 0, wage: 0 });
+
+// ---------------------------------------------------------------------------
+// Loss functions. Each returns a loss vector valued today. The optional
+// `trace` collects months, days and salaries for the explanation.
+// ---------------------------------------------------------------------------
+
+function benefitDays(person, months, A) {
+  const top = person.hasAgreement ? Math.min(months, A.topUpMonths) : 0;
+  return top * DAYS_PER_MONTH + (months - top) * DAYS_PER_MONTH * A.benefitDaysShare;
+}
+
+/** Loss for `self` being home `mSelf` months with a child born at `birth`. */
+function leaveLoss(self, other, mSelf, mOther, birth, ctx, trace) {
+  const { A } = ctx;
+  const loss = zero();
+  if (mSelf <= 0) return loss;
+
+  // Föräldrapenning days are shared per child: the first 390 are paid on
+  // sjukpenningnivå, the next 90 on lägstanivå. Days are allocated pro rata.
+  const totalDays = benefitDays(self, mSelf, A) + benefitDays(other, mOther, A);
+  const sickShare = totalDays > 0 ? Math.min(totalDays, A.sicknessLevelDays) / totalDays : 1;
+  const lowShare = totalDays > 0
+    ? Math.min(Math.max(totalDays - A.sicknessLevelDays, 0), A.minimumLevelDays) / totalDays
+    : 0;
+
+  const topMonths = self.hasAgreement ? Math.min(mSelf, A.topUpMonths) : 0;
+  const waiverMonths = self.hasAgreement && A.premiumWaiver ? A.premiumWaiverMonths : 0;
+
+  for (let j = 0; j < Math.ceil(mSelf); j += 1) {
+    const frac = Math.min(1, mSelf - j);
+    const t = birth + (j + 0.5) / 12;
+    if (!self.active(t)) continue;
+    const S = self.salaryAt(t);
+    const topFrac = clamp(topMonths - j, 0, frac);
+    const restFrac = frac - topFrac;
+
+    const cap = A.parentalBenefitCapPBB * ctx.pbbAt(t);
+    const dailyBenefit = (A.benefitRate * Math.min(12 * S, cap)) / 365;
+    const restIncome = DAYS_PER_MONTH * A.benefitDaysShare
+      * (sickShare * dailyBenefit + lowShare * A.minimumLevelPerDay);
+    const topIncome = A.topUpLevel * S;
+
+    loss.income += (topFrac * Math.max(0, S - topIncome) + restFrac * Math.max(0, S - restIncome)) * self.toToday(t);
+    if (trace) {
+      trace.months += frac;
+      trace.salary += frac * S * self.toToday(t);
+    }
+
+    // Pension: occupational premiums are based on the salary paid by the
+    // employer (none during leave unless premiebefrielse applies). Benefits
+    // are pensionable in the public system.
+    const waivedFrac = clamp(waiverMonths - j, 0, frac);
+    const unwaived = frac - waivedFrac;
+    if (unwaived > 0) {
+      loss.occupational += self.occupational(S, t) * self.fundValueToday(t) * unwaived;
+    }
+    addPublicLoss(loss, self, ctx, t,
+      topFrac * (self.pensionBase(S, t) - self.pensionBase(topIncome, t))
+      + restFrac * (self.pensionBase(S, t) - self.pensionBase(restIncome, t)));
+  }
+  return loss;
+}
+
+/** Loss for working `percent` % of full time during `years` from `start`. */
+function partTimeLoss(self, percent, years, start, ctx, trace) {
+  const loss = zero();
+  const reduction = 1 - percent / 100;
+  if (reduction <= 0 || years <= 0) return loss;
+  const months = years * 12;
+  for (let j = 0; j < Math.ceil(months); j += 1) {
+    const frac = Math.min(1, months - j);
+    const t = start + (j + 0.5) / 12;
+    if (!self.active(t)) continue;
+    const S = self.salaryAt(t);
+    const reduced = S * (1 - reduction);
+    loss.income += frac * reduction * S * self.toToday(t);
+    addPensionLoss(loss, self, ctx, t, S, reduced, reduced, frac);
+    if (trace) {
+      trace.months += frac;
+      trace.salary += frac * S * self.toToday(t);
+    }
+  }
+  return loss;
+}
+
+/** Loss for taking `share` of the family's vab days. */
+function vabLoss(self, share, ctx, trace) {
+  const { A } = ctx;
+  const loss = zero();
+  if (share <= 0) return loss;
+  for (const birth of ctx.births) {
+    for (let age = A.vabFromAge; age < A.vabToAge; age += 1) {
+      const t = birth + age + 0.5;
+      if (!self.active(t)) continue;
+      const S = self.salaryAt(t);
+      const days = share * A.vabDaysPerChildYear;
+      const dailyWage = (12 * S) / A.workDaysPerYear;
+      const cap = A.vabCapPBB * ctx.pbbAt(t);
+      const dailyBenefit = (A.benefitRate * Math.min(12 * S, cap)) / A.workDaysPerYear;
+      const yearlyLoss = days * Math.max(0, dailyWage - dailyBenefit);
+      loss.income += yearlyLoss * self.toToday(t);
+      // Monthly averages over the year: the full deduction lowers the
+      // occupational pension base; benefits are pensionable publicly.
+      const deduction = (days * dailyWage) / 12;
+      addPensionLoss(loss, self, ctx, t, S, S - deduction, S - yearlyLoss / 12, 12);
+      if (trace) {
+        trace.days += days;
+        trace.wage += days * dailyWage * self.toToday(t);
+      }
+    }
+  }
+  return loss;
+}
+
+/** Full salary development loss for the parent who is home (share = 1). */
+function careerLossFull(self, ctx, trace) {
+  const { A } = ctx;
+  const loss = zero();
+  if (A.wagePenalty <= 0 || !ctx.births.length) return loss;
+  const start = ctx.firstBirth;
+  const end = A.wagePenaltyPermanent ? self.retirementYear : start + A.wagePenaltyYears;
+  const months = Math.max(0, (end - start) * 12);
+  for (let j = 0; j < Math.ceil(months); j += 1) {
+    const frac = Math.min(1, months - j);
+    const t = start + (j + 0.5) / 12;
+    if (!self.active(t)) continue;
+    const S = self.salaryAt(t);
+    const reduced = S * (1 - A.wagePenalty);
+    loss.income += frac * A.wagePenalty * S * self.toToday(t);
+    addPensionLoss(loss, self, ctx, t, S, reduced, reduced, frac);
+    if (trace) {
+      trace.months += frac;
+      trace.salary += frac * S * self.toToday(t);
+    }
+  }
+  return loss;
+}
+
+// ---------------------------------------------------------------------------
+// Compensation principles
+// ---------------------------------------------------------------------------
+
+/**
+ * Compare the two parents for one component.
+ *
+ * `fYou(xSelf, xOther)` / `fPartner(xSelf, xOther)` return the loss of that
+ * parent for a given "amount of home time" x. Positive compensation means the
+ * partner should compensate you.
+ */
+function compare(fYou, fPartner, xYou, xPartner, principle) {
+  const you = fYou(xYou, xPartner);
+  const partner = fPartner(xPartner, xYou);
+  let compensation = zero();
+
+  if (principle === 'equal') {
+    compensation = scale(sub(you, partner), 0.5);
+  } else {
+    // Time beyond 50 %: value the difference in time with the loss function
+    // of the parent who has been home more.
+    const youSwapped = fYou(xPartner, xYou);
+    if (sum(you) - sum(youSwapped) > EPSILON) {
+      compensation = scale(sub(you, youSwapped), 0.5);
+    } else {
+      const partnerSwapped = fPartner(xYou, xPartner);
+      if (sum(partner) - sum(partnerSwapped) > EPSILON) {
+        compensation = scale(sub(partner, partnerSwapped), -0.5);
+      }
+    }
+  }
+  return { you, partner, compensation };
+}
+
+function homeMonths(person, monthsKey, children) {
+  const leave = children.reduce((acc, c) => acc + c[monthsKey], 0);
+  const partTime = (1 - person.partTimePercent / 100) * 12 * person.partTimeYears;
+  return { leave, partTime, total: leave + partTime };
+}
+
+function annuityPayment(capital, yearlyRate, months) {
+  if (months <= 0) return 0;
+  const i = Math.pow(1 + yearlyRate, 1 / 12) - 1;
+  if (Math.abs(i) < 1e-12) return capital / months;
+  return (capital * i) / (1 - Math.pow(1 + i, -months));
+}
+
+/**
+ * Two equivalent ways of paying `lumpSum`, an amount valued today: all at once,
+ * or as a fixed amount at the end of every month for `years` years. The monthly
+ * amount is the annuity with the same present value, so the receiver ends up
+ * with the same value as if the lump sum had been invested today at
+ * `yearlyReturn`.
+ */
+function savingsPlan(lumpSum, years, yearlyReturn) {
+  const n = Math.max(1, Math.round(years * 12));
+  const i = Math.pow(1 + yearlyReturn, 1 / 12) - 1;
+  const monthly = Math.abs(i) < 1e-12 ? lumpSum / n : (lumpSum * i) / (1 - Math.pow(1 + i, -n));
+  return { lumpSum, years: n / 12, months: n, monthly, totalPaid: monthly * n };
+}
+
+// ---------------------------------------------------------------------------
+// Main entry point
+// ---------------------------------------------------------------------------
+
+const perUnit = (total, units) => (units > 0 ? total / units : null);
+
+function calculate(rawInput) {
+  const input = normalizeInput(rawInput);
+  const A = input.assumptions;
+  const Y = input.currentYear;
+  const ctx = buildContext(input);
+  const you = buildPerson(input.you, ctx);
+  const partnerAgeOffset = input.partner.age - input.you.age;
+  const partner = buildPerson(input.partner, ctx);
+  const people = { you, partner };
+  const { principle } = input;
+  const traces = () => ({ leave: newTrace(), partTime: newTrace(), vab: newTrace(), career: newTrace() });
+  const trace = { you: traces(), partner: traces() };
+
+  // 1. Föräldraledighet – per child
+  let leave = { you: zero(), partner: zero(), compensation: zero() };
+  input.children.forEach((child, idx) => {
+    const birth = ctx.births[idx];
+    const r = compare(
+      (mSelf, mOther) => leaveLoss(you, partner, mSelf, mOther, birth, ctx),
+      (mSelf, mOther) => leaveLoss(partner, you, mSelf, mOther, birth, ctx),
+      child.monthsYou,
+      child.monthsPartner,
+      principle,
+    );
+    leave = {
+      you: add(leave.you, r.you),
+      partner: add(leave.partner, r.partner),
+      compensation: add(leave.compensation, r.compensation),
+    };
+    leaveLoss(you, partner, child.monthsYou, child.monthsPartner, birth, ctx, trace.you.leave);
+    leaveLoss(partner, you, child.monthsPartner, child.monthsYou, birth, ctx, trace.partner.leave);
+  });
+
+  // 2. Deltid – starts after the first child's parental leave by default
+  const firstChild = input.children[ctx.order[0]];
+  const defaultPartTimeStart = ctx.firstBirth
+    + Math.max(12, firstChild ? firstChild.monthsYou + firstChild.monthsPartner : 12) / 12;
+  const partTimeStart = (p, ageOffset) => (p.partTimeStartAge === null
+    ? defaultPartTimeStart
+    : Y - (input.you.age + ageOffset - p.partTimeStartAge));
+  const ptYou = { percent: input.you.partTimePercent, years: input.you.partTimeYears, start: partTimeStart(input.you, 0) };
+  const ptPartner = {
+    percent: input.partner.partTimePercent,
+    years: input.partner.partTimeYears,
+    start: partTimeStart(input.partner, partnerAgeOffset),
+  };
+  const partTime = compare(
+    (x) => partTimeLoss(you, x.percent, x.years, x.start, ctx),
+    (x) => partTimeLoss(partner, x.percent, x.years, x.start, ctx),
+    ptYou,
+    ptPartner,
+    principle,
+  );
+  partTimeLoss(you, ptYou.percent, ptYou.years, ptYou.start, ctx, trace.you.partTime);
+  partTimeLoss(partner, ptPartner.percent, ptPartner.years, ptPartner.start, ctx, trace.partner.partTime);
+
+  // 3. Vab
+  const vab = compare(
+    (share) => vabLoss(you, share, ctx),
+    (share) => vabLoss(partner, share, ctx),
+    input.vabShareYou,
+    1 - input.vabShareYou,
+    principle,
+  );
+  vabLoss(you, input.vabShareYou, ctx, trace.you.vab);
+  vabLoss(partner, 1 - input.vabShareYou, ctx, trace.partner.vab);
+
+  // 4. Löneutveckling – scaled by each parent's share of the home time
+  const homeYou = homeMonths(input.you, 'monthsYou', input.children);
+  const homePartner = homeMonths(input.partner, 'monthsPartner', input.children);
+  const homeTotal = homeYou.total + homePartner.total;
+  const shareYou = homeTotal > 0 ? homeYou.total / homeTotal : 0.5;
+  const careerYouFull = careerLossFull(you, ctx, trace.you.career);
+  const careerPartnerFull = careerLossFull(partner, ctx, trace.partner.career);
+  const career = compare(
+    (share) => scale(careerYouFull, share),
+    (share) => scale(careerPartnerFull, share),
+    shareYou,
+    1 - shareYou,
+    principle,
+  );
+
+  // Assemble the rows: salary parts first, then the pension parts.
+  const parts = { leave, partTime, vab, career };
+  const totalOf = (who) => Object.values(parts).reduce((acc, part) => add(acc, part[who]), zero());
+  const totals = { you: totalOf('you'), partner: totalOf('partner'), compensation: totalOf('compensation') };
+  const rows = [
+    ...['leave', 'partTime', 'vab', 'career'].map((key) => ({
+      key,
+      amount: parts[key].compensation.income,
+      you: parts[key].you.income,
+      partner: parts[key].partner.income,
+    })),
+    {
+      key: 'occupationalPension',
+      amount: totals.compensation.occupational,
+      you: totals.you.occupational,
+      partner: totals.partner.occupational,
+    },
+  ];
+  if (A.publicPension) {
+    rows.push({
+      key: 'publicPension',
+      amount: publicOf(totals.compensation),
+      you: publicOf(totals.you),
+      partner: publicOf(totals.partner),
+    });
+  }
+
+  const total = rows.reduce((acc, r) => acc + r.amount, 0);
+  const totalYou = rows.reduce((acc, r) => acc + r.you, 0);
+  const totalPartner = rows.reduce((acc, r) => acc + r.partner, 0);
+  const direction = total > EPSILON * 1000 ? 'toYou' : total < -EPSILON * 1000 ? 'toPartner' : 'even';
+  const beneficiary = direction === 'toPartner' ? partner : you;
+  const sign = direction === 'toPartner' ? -1 : 1;
+
+  // Pension: value today → capital at retirement (today's money) → per month.
+  const realPensionReturn = (1 + A.pensionReturn) / (1 + A.inflation) - 1;
+  const pensionPerMonth = (capital) => annuityPayment(capital, realPensionReturn, A.payoutYears * 12);
+  const pensionSummary = (loss, person) => {
+    const atRetirement = Math.max(0, person.atRetirement(loss));
+    return {
+      valueToday: loss.occupational + publicOf(loss),
+      atRetirement,
+      perMonth: pensionPerMonth(atRetirement),
+    };
+  };
+
+  // Suggestion: the total is a value today, so it is the lump sum. The monthly
+  // amount is the same value spread over the chosen number of years.
+  const lumpSum = Math.abs(total);
+  const maxYears = Math.max(1, beneficiary.yearsToRetirement);
+  const plan = savingsPlan(lumpSum, clamp(input.savingsYears ?? maxYears, 1, maxYears), A.savingsReturn);
+
+  // The figures behind every part, for the step-by-step explanation.
+  const explainFor = (who) => {
+    const tr = trace[who];
+    const p = input[who];
+    const person = people[who];
+    const full = who === 'you' ? careerYouFull : careerPartnerFull;
+    const share = who === 'you' ? shareYou : 1 - shareYou;
+    const leaveLossPerMonth = perUnit(parts.leave[who].income, tr.leave.months);
+    const leaveSalary = perUnit(tr.leave.salary, tr.leave.months);
+    const wagePerDay = perUnit(tr.vab.wage, tr.vab.days);
+    const lossPerDay = perUnit(parts.vab[who].income, tr.vab.days);
+    return {
+      leave: {
+        months: tr.leave.months,
+        salary: leaveSalary ?? person.salaryToday,
+        benefit: leaveSalary === null ? null : leaveSalary - leaveLossPerMonth,
+        lossPerMonth: leaveLossPerMonth,
+        total: parts.leave[who].income,
+      },
+      partTime: {
+        percent: p.partTimePercent / 100,
+        years: tr.partTime.months / 12,
+        salary: perUnit(tr.partTime.salary, tr.partTime.months) ?? person.salaryToday,
+        lossPerMonth: perUnit(parts.partTime[who].income, tr.partTime.months),
+        total: parts.partTime[who].income,
+      },
+      vab: {
+        share: who === 'you' ? input.vabShareYou : 1 - input.vabShareYou,
+        days: tr.vab.days,
+        wagePerDay,
+        benefitPerDay: wagePerDay === null ? null : wagePerDay - lossPerDay,
+        lossPerDay,
+        total: parts.vab[who].income,
+      },
+      career: {
+        share,
+        full: full.income,
+        total: parts.career[who].income,
+      },
+      pension: {
+        leave: parts.leave[who].occupational + publicOf(parts.leave[who]),
+        partTime: parts.partTime[who].occupational + publicOf(parts.partTime[who]),
+        vab: parts.vab[who].occupational + publicOf(parts.vab[who]),
+        career: parts.career[who].occupational + publicOf(parts.career[who]),
+        ...pensionSummary(totals[who], person),
+      },
+    };
+  };
+
+  return {
+    input,
+    rows,
+    /** Compensation valued today; positive = from the partner to you. */
+    total,
+    direction,
+    losses: { you: totalYou, partner: totalPartner },
+    pension: {
+      you: pensionSummary(totals.you, you),
+      partner: pensionSummary(totals.partner, partner),
+      compensation: pensionSummary(scale(totals.compensation, sign), beneficiary),
+    },
+    savings: {
+      ...plan,
+      maxYears,
+      rate: A.savingsReturn,
+      yearsToRetirement: beneficiary.yearsToRetirement,
+      /** The lump sum invested until retirement, in today's money. */
+      valueAtRetirement: lumpSum
+        * Math.pow((1 + A.savingsReturn) / (1 + A.inflation), beneficiary.yearsToRetirement),
+    },
+    explain: {
+      you: explainFor('you'),
+      partner: explainFor('partner'),
+      /** How far beyond half you are in each part (negative = your partner). */
+      beyondHalf: {
+        leave: input.children.reduce((acc, c) => acc + (c.monthsYou - c.monthsPartner) / 2, 0),
+        partTime: (homeYou.partTime - homePartner.partTime) / 2,
+        vab: (trace.you.vab.days - trace.partner.vab.days) / 2,
+        career: shareYou - 0.5,
+      },
+    },
+    facts: {
+      firstBirthYear: input.children.length ? ctx.firstBirth : null,
+      birthYears: ctx.births,
+      homeMonths: { you: homeYou, partner: homePartner },
+      shareYou,
+      salaryToday: { you: you.salaryToday, partner: partner.salaryToday },
+      yearsToRetirement: { you: you.yearsToRetirement, partner: partner.yearsToRetirement },
+      partTimeStart: { you: ptYou.start, partner: ptPartner.start, defaultStart: defaultPartTimeStart },
+    },
+  };
+}
+return { DEFAULT_ASSUMPTIONS, PRICE_BASE_AMOUNTS, INCOME_BASE_AMOUNTS, VAB_SPLITS, PART_TIME_OPTIONS, COMPONENT_KEYS, LIMITS, DEFAULT_SAVINGS_YEARS, createDefaultInput, createPerson, createChild, normalizeInput, leaveLoss, partTimeLoss, vabLoss, careerLossFull, savingsPlan, calculate };
+})();
+
+// ---- assets/js/i18n.js ----
+__modules["assets/js/i18n.js"] = (() => {
+/**
+ * Texts in Swedish (default) and English.
+ * Placeholders use {name} and are filled by `t(key, values)`.
+ */
+
+const sv = {
+  'meta.title': 'Lika delat – räkna ut föräldrakompensation',
+  'meta.description': 'Räkna ut hur mycket ni behöver kompensera varandra för tiden hemma med barnen – förlorad lön, löneutveckling, deltid, vab och pension.',
+  brand: 'Lika delat',
+  'header.tagline': 'Kalkylator för jämlik livsinkomst',
+  'lang.switch': 'English',
+  'lang.switchLabel': 'Switch to English',
+  'unit.kr': 'kr',
+  'unit.krMonth': 'kr/mån',
+  'unit.years': 'år',
+  'unit.year': 'år',
+  'unit.months': 'mån',
+  'unit.monthsLong': 'månader',
+  'unit.days': 'dagar',
+  'unit.percent': '%',
+
+  'intro.eyebrow': 'Föräldrakalkylator',
+  'intro.title': 'Vad kostar tiden hemma med barnen – och vem bär kostnaden?',
+  'intro.lead': 'Den som är hemma mest med barnen förlorar ofta lön, löneutveckling och pension. Svara på några korta frågor så räknar vi ut ungefär hur mycket ni behöver kompensera varandra – och föreslår ett engångsbelopp eller ett månadsspar som jämnar ut skillnaden.',
+  'intro.point1': 'Föräldraledighet, deltid och vab',
+  'intro.point2': 'Löneutveckling och karriär',
+  'intro.point3': 'Tjänstepension – och ett förslag på sparande',
+  'intro.start': 'Starta',
+  'intro.detailed': 'Gå direkt till detaljerad beräkning',
+  'intro.resume': 'Visa min senaste beräkning',
+  'intro.privacy': 'Tar cirka två minuter. Allt räknas ut i din webbläsare – inga uppgifter skickas någonstans.',
+
+  'wizard.progress': 'Fråga {current} av {total}',
+  'wizard.back': 'Tillbaka',
+  'wizard.next': 'Nästa',
+  'wizard.finish': 'Se resultat',
+  'wizard.help': 'Förklaring',
+  'wizard.close': 'Stäng',
+  'wizard.factTitle': 'Visste du att?',
+  'wizard.chooseOption': 'Välj ett av alternativen.',
+
+  'q.age.title': 'Hur gammal är du?',
+  'q.age.label': 'Din ålder',
+  'q.age.error': 'Ange en ålder mellan 18 och 66 år.',
+  'q.age.helpTitle': 'Varför spelar åldern roll?',
+  'q.age.help1': 'Åldern avgör hur många år det är kvar till pension. Ju längre tid det är kvar, desto mer hinner uteblivna pensionsavsättningar växa – och desto längre tid har ni på er att jämna ut skillnaden.',
+  'q.age.help2': 'Vi räknar med att din partner är lika gammal. Det kan du ändra i den detaljerade beräkningen.',
+
+  'q.salary.title': 'Vilken månadslön hade ni innan den första föräldraledigheten?',
+  'q.salary.you': 'Din månadslön',
+  'q.salary.partner': 'Din partners månadslön',
+  'q.salary.hint': 'Före skatt.',
+  'q.salary.error': 'Ange en månadslön mellan 5\u00a0000 och 1\u00a0000\u00a0000\u00a0kr.',
+  'q.salary.helpTitle': 'Lönen när ni blev föräldrar',
+  'q.salary.help1': 'Ange lönen ni hade precis innan det första barnet kom. Kommer du inte ihåg exakt räcker det med en ungefärlig siffra.',
+  'q.salary.help2': 'Föddes första barnet för flera år sedan räknar vi upp lönen med inflationen, så att alla belopp visas i dagens penningvärde. Planerar ni att få barn anger du er nuvarande lön.',
+  'q.salary.fact': 'Svenska studier visar att mammors arbetsinkomst sjunker kraftigt de första åren efter första barnet och att en stor del av tappet finns kvar tio år senare, medan pappors inkomst påverkas betydligt mindre.',
+
+  'q.agreement.title': 'Har ni kollektivavtal eller föräldralön?',
+  'q.agreement.sub': 'Välj Ja om arbetsgivaren har kollektivavtal eller på annat sätt fyller på föräldrapenningen.',
+  'q.agreement.you': 'Du',
+  'q.agreement.partner': 'Din partner',
+  'option.yes': 'Ja',
+  'option.no': 'Nej',
+  'option.unknown': 'Vet ej',
+  'q.agreement.helpTitle': 'Kollektivavtal och föräldralön',
+  'q.agreement.help1': 'Med kollektivavtal får du ofta föräldralön – ett tillägg från arbetsgivaren ovanpå föräldrapenningen. Vi räknar med att lönen fylls på till 90 procent under de första sex månaderna, vilket är vanligt.',
+  'q.agreement.help2': 'Kollektivavtalet styr också tjänstepensionen. Vi räknar med en tjänstepension som liknar ITP 1: 4,5 procent av lönen upp till 7,5 inkomstbasbelopp per år och 30 procent på lönedelar över det. Utan kollektivavtal räknar vi med 4,5 procent av hela lönen.',
+  'q.agreement.help3': 'Väljer du Vet ej räknar vi som om du har kollektivavtal, eftersom de flesta anställda i Sverige omfattas av ett. Fråga din arbetsgivare om du är osäker.',
+
+  'q.vab.title': 'Vem är oftast hemma med sjuka barn?',
+  'option.vab.you': 'Jag',
+  'option.vab.partner': 'Min partner',
+  'option.vab.equal': 'Vi delar lika',
+  'q.vab.helpTitle': 'Vab – vård av sjukt barn',
+  'q.vab.help1': 'När du vabbar får du tillfällig föräldrapenning från Försäkringskassan – knappt 80 procent av lönen upp till 7,5 prisbasbelopp per år. Resten av lönen förlorar du.',
+  'q.vab.help2': 'Vi räknar med 8 vab-dagar per barn och år, från ettårsdagen tills barnet fyller 12. Svarar du att en av er tar mest räknar vi med fördelningen 70/30, annars 50/50. En exakt fördelning kan du ange i den detaljerade beräkningen.',
+
+  'q.partTime.title': 'Har ni gått ner i arbetstid för att ta hand om familjen?',
+  'q.partTime.sub': 'Ange arbetstid i procent av heltid. Ta med deltid ni planerar också.',
+  'q.partTime.you': 'Du',
+  'q.partTime.partner': 'Din partner',
+  'q.partTime.full': 'Heltid',
+  'q.partTime.howLong': 'Hur länge?',
+  'q.partTime.helpTitle': 'Deltid',
+  'q.partTime.help1': 'Deltid ger lägre lön och lägre pensionsavsättningar under hela perioden. 80 procent motsvarar en fyradagarsvecka.',
+  'q.partTime.help2': 'Vi räknar med att deltiden börjar när den första föräldraledigheten är slut. Startåldern kan du ändra i den detaljerade beräkningen.',
+  'q.partTime.fact': 'Betydligt fler mammor än pappor går ner i arbetstid när barnen är små, och många fortsätter att jobba deltid under stora delar av barnens uppväxt.',
+
+  'q.children.title': 'Hur många barn har ni?',
+  'q.children.sub': 'Räkna med barn ni planerar att få.',
+  'q.children.count': 'Antal barn',
+  'q.children.decrease': 'Ett barn färre',
+  'q.children.increase': 'Ett barn till',
+  'q.children.firstAge': 'Hur gammal var du när ert första barn föddes?',
+  'q.children.firstAgeError': 'Ange en ålder mellan 14 år och din ålder i dag plus fem år.',
+  'q.children.gapHint': 'Vi antar tre år mellan barnen.',
+  'q.children.helpTitle': 'Barn och föräldraledigheter',
+  'q.children.help1': 'Antalet barn styr hur många föräldraledigheter och hur många år med vab vi räknar med.',
+  'q.children.help2': 'Åldern när första barnet föddes avgör när förlusterna inträffade och hur länge de hinner påverka lön och pension. Vi antar tre år mellan barnen – du kan ändra det per barn i den detaljerade beräkningen.',
+
+  'q.leave.title': 'Hur länge var ni hemma med barnen?',
+  'q.leave.sub': 'Ange hur många månader var och en var föräldraledig. Är ni inte klara – ange hur länge ni planerar att vara hemma.',
+  'q.leave.prefilled': 'Förifyllt med ett vanligt utfall, 15 och 4 månader. Ändra så att det stämmer för er.',
+  'q.leave.child': 'Barn {n}',
+  'q.leave.you': 'Du',
+  'q.leave.partner': 'Din partner',
+  'q.leave.helpTitle': 'Föräldraledighet',
+  'q.leave.help1': 'Räkna med hela tiden ni var hemma, inte bara dagarna med föräldrapenning. Många är lediga längre än de tar ut ersättning för – vi antar att föräldrapenning tas ut 60 procent av dagarna, utom under månaderna med föräldralön.',
+  'q.leave.help2': 'Föräldrapenningen är knappt 80 procent av lönen upp till 10 prisbasbelopp per år i 390 dagar per barn, därefter 180 kr per dag i 90 dagar.',
+  'q.leave.help3': 'I genomsnitt är mammor hemma drygt ett år och pappor några månader per barn. Exakta uppgifter om uttagna dagar finns på Mina sidor hos Försäkringskassan.',
+
+  'result.eyebrow': 'Ert resultat',
+  'result.toYou': 'Din partner bör kompensera dig med',
+  'result.toPartner': 'Du bör kompensera din partner med',
+  'result.even': 'Ni har delat ungefär lika',
+  'result.evenText': 'Skillnaden i förlorad lön och pension är liten – ingen kompensation behövs.',
+  'result.lead': 'Så mycket är skillnaden i förlorad lön och pension värd i dag, före skatt.',
+  'result.monthly': '{amount} i månaden',
+  'result.savingsPeriod': 'Spara under',
+  'result.untilRetirement': 'fram till pension ({n} år)',
+  'result.pensionMonthly': 'Av beloppet är {capital} utebliven pension. Det motsvarar ungefär {amount} lägre pension per månad under {years} år.',
+
+  'suggest.title': 'Förslag: så kan ni jämna ut det',
+  'suggest.lumpLabel': 'Alternativ 1 – engångsbelopp i dag',
+  'suggest.lumpText': 'Hela beloppet förs över på en gång.',
+  'suggest.or': 'eller',
+  'suggest.monthlyLabel': 'Alternativ 2 – månadsspar',
+  'suggest.monthlyText': 'Totalt {total} på {years}. Pengarna kommer senare än med ett engångsbelopp, så månadsbeloppet räknas med {rate} avkastning per år – då blir värdet detsamma.',
+  'suggest.growth': 'Sparas pengarna till pensionen om {years} år kan de växa till ungefär {amount} i dagens penningvärde.',
+
+  'breakdown.title': 'Vad beloppet består av',
+  'breakdown.sub': 'Kompensationen per del. Stapeln visar hur stor varje del är.',
+  'breakdown.total': 'Totalt',
+  'breakdown.toYou': 'till dig',
+  'breakdown.toPartner': 'till din partner',
+  'legend.toYou': 'Kompensation till dig',
+  'legend.toPartner': 'Kompensation till din partner',
+  'tooltip.you': 'Din förlust',
+  'tooltip.partner': 'Partnerns förlust',
+  'tooltip.compensation': 'Kompensation',
+
+  'row.leave': 'Föräldraledighet',
+  'row.leave.desc': 'Lön som föräldrapenning och föräldralön inte täcker.',
+  'row.partTime': 'Deltid',
+  'row.partTime.desc': 'Lön som försvinner med kortare arbetstid.',
+  'row.vab': 'Vab',
+  'row.vab.desc': 'Löneavdrag som vab-ersättningen inte täcker.',
+  'row.career': 'Löneutveckling',
+  'row.career.desc': 'Lägre lön för den som är hemma mest med barnen.',
+  'row.occupationalPension': 'Tjänstepension',
+  'row.occupationalPension.desc': 'Uteblivna pensionsavsättningar med avkastning fram till i dag.',
+  'row.publicPension': 'Allmän pension',
+  'row.publicPension.desc': 'Lägre inkomstpension och premiepension, efter barnårsrätt.',
+
+  'compare.title': 'Era förluster var för sig',
+  'compare.sub': 'Hur mycket var och en av er beräknas förlora på föräldraskapet, värderat i dag. Kompensationen jämnar ut skillnaden.',
+  'compare.you': 'Du',
+  'compare.partner': 'Din partner',
+  'compare.total': 'Total förlust',
+  'compare.table': 'Visa som tabell',
+  'compare.colPart': 'Del',
+  'compare.colCompensation': 'Kompensation',
+  'compare.pensionPerMonth': 'Lägre pension per månad',
+
+  'facts.title': 'Underlag för beräkningen',
+  'facts.share': 'Din andel av tiden hemma',
+  'facts.shareValue': '{share} – {you} av {total} månader',
+  'facts.salary': 'Löner i dagens penningvärde',
+  'facts.salaryValue': 'Du {you} · partner {partner}',
+  'facts.retirement': 'År kvar till pension',
+  'facts.retirementValue': 'Du {you} · partner {partner}',
+  'facts.principle': 'Fördelningsprincip',
+
+  'explain.title': 'Uträkningen steg för steg',
+  'explain.sub': 'Så har vi kommit fram till beloppet, med era egna siffror. Alla belopp är värderade i dag och före skatt. Öppna en del för att se hur den är uträknad.',
+  'explain.compensation': 'Kompensation',
+  'explain.none': 'Här finns ingen skillnad att kompensera.',
+  'explain.generic': '{amount} {to}.',
+  'explain.equal': 'Skillnaden mellan era förluster delas lika: ({a} − {b}) / 2 = {amount} {to}.',
+  'explain.leave.months': 'Månader hemma',
+  'explain.leave.salary': 'Lön per månad, i dagens penningvärde',
+  'explain.leave.benefit': 'Föräldrapenning och föräldralön per månad, i snitt',
+  'explain.leave.lossPerMonth': 'Förlust per månad (lön − ersättning)',
+  'explain.leave.total': 'Förlorad lön (förlust per månad × månader)',
+  'explain.leave.note.you': 'Du var hemma {beyond} mer än hälften av er sammanlagda föräldraledighet. Din förlust för den tiden är {amount}.',
+  'explain.leave.note.partner': 'Din partner var hemma {beyond} mer än hälften av er sammanlagda föräldraledighet. Partnerns förlust för den tiden är {amount}.',
+  'explain.partTime.percent': 'Arbetstid',
+  'explain.partTime.years': 'Tid med deltid',
+  'explain.partTime.salary': 'Heltidslön per månad, i dagens penningvärde',
+  'explain.partTime.lossPerMonth': 'Förlust per månad (lön × minskad arbetstid)',
+  'explain.partTime.total': 'Förlorad lön (förlust per månad × månader)',
+  'explain.partTime.note.you': 'Du har gått ner mer i arbetstid än din partner. Hälften av skillnaden, värderad med din lön, är {amount}.',
+  'explain.partTime.note.partner': 'Din partner har gått ner mer i arbetstid än du. Hälften av skillnaden, värderad med partnerns lön, är {amount}.',
+  'explain.vab.share': 'Andel av vab-dagarna',
+  'explain.vab.days': 'Vab-dagar totalt ({days} per barn och år, från {from} till {to} års ålder)',
+  'explain.vab.wagePerDay': 'Löneavdrag per dag',
+  'explain.vab.benefitPerDay': 'Ersättning från Försäkringskassan per dag',
+  'explain.vab.lossPerDay': 'Förlust per dag (löneavdrag − ersättning)',
+  'explain.vab.total': 'Förlorad lön (förlust per dag × dagar)',
+  'explain.vab.note.you': 'Du tar {beyond} mer än hälften av vab-dagarna. Din förlust för de dagarna är {amount}.',
+  'explain.vab.note.partner': 'Din partner tar {beyond} mer än hälften av vab-dagarna. Partnerns förlust för de dagarna är {amount}.',
+  'explain.career.share': 'Andel av tiden hemma (föräldraledighet och deltid)',
+  'explain.career.full': 'Lönetapp för den som tar all tid hemma ({penalty} lägre lön {period})',
+  'explain.career.years': 'i {n} år',
+  'explain.career.permanent': 'fram till pension',
+  'explain.career.total': 'Förlorad lön (lönetapp × andel)',
+  'explain.career.note.you': 'Du har tagit {beyond} procentenheter mer än hälften av tiden hemma. Den andelen av ditt lönetapp är {amount}.',
+  'explain.career.note.partner': 'Din partner har tagit {beyond} procentenheter mer än hälften av tiden hemma. Den andelen av partnerns lönetapp är {amount}.',
+  'explain.pension.title': 'Pension',
+  'explain.pension.leave': 'Från föräldraledighet',
+  'explain.pension.partTime': 'Från deltid',
+  'explain.pension.vab': 'Från vab',
+  'explain.pension.career': 'Från lägre löneutveckling',
+  'explain.pension.valueToday': 'Utebliven pension, värde i dag',
+  'explain.pension.atRetirement': 'Det motsvarar vid pensionen',
+  'explain.pension.perMonth': 'Lägre pension per månad i {years} år',
+  'explain.pension.note': 'Pensionen följer av delarna ovan och fördelas på samma sätt som lönen: {amount} {to}.',
+  'explain.suggest.title': 'Förslaget',
+  'explain.suggest.lumpSum': 'Summan av delarna = engångsbelopp i dag',
+  'explain.suggest.period': 'Sparperiod',
+  'explain.suggest.rate': 'Avkastning per år',
+  'explain.suggest.monthly': 'Månadsbelopp',
+  'explain.suggest.totalPaid': 'Totalt inbetalt (månadsbelopp × antal månader)',
+  'explain.suggest.atRetirement': 'Engångsbeloppets värde om det sparas till pensionen ({years} år)',
+  'explain.suggest.note': 'Månadsbeloppet = engångsbelopp × r / (1 − (1 + r)⁻ⁿ), där r är avkastningen per månad och n antalet månader. Då är månadssparandet värt lika mycket som engångsbeloppet i dag. Med 0 procent avkastning blir det engångsbeloppet delat på antalet månader.',
+
+  'principle.excess': 'Tid utöver hälften',
+  'principle.excessDesc': 'Den som varit hemma mer än halva tiden kompenseras för tiden över 50 procent, värderad efter sin egen lön.',
+  'principle.equal': 'Dela förlusterna lika',
+  'principle.equalDesc': 'Båda parternas förluster räknas ut och skillnaden delas lika, så att ni bär lika stor del av hushållets totala förlust. Ger ett annat resultat när lönerna skiljer sig åt.',
+
+  'actions.adjust': 'Justera beräkningen',
+  'actions.copy': 'Kopiera länk',
+  'actions.copied': 'Länken är kopierad',
+  'actions.copyFailed': 'Kunde inte kopiera. Kopiera adressen i webbläsaren i stället.',
+  'actions.print': 'Skriv ut',
+  'actions.restart': 'Börja om',
+  'actions.restartConfirm': 'Vill du börja om? Dina svar rensas.',
+  'actions.toTop': 'Till resultatet',
+
+  'adjust.title': 'Justera beräkningen',
+  'adjust.sub': 'Ändra uppgifterna – resultatet uppdateras direkt.',
+  'adjust.you': 'Du',
+  'adjust.partner': 'Din partner',
+  'adjust.children': 'Barn',
+  'adjust.child': 'Barn {n}',
+  'adjust.addChild': 'Lägg till barn',
+  'adjust.removeChild': 'Ta bort',
+  'adjust.removeChildLabel': 'Ta bort barn {n}',
+  'adjust.noChildren': 'Inga barn tillagda. Lägg till ett barn för att räkna med föräldraledighet och vab.',
+  'adjust.vab': 'Vab',
+  'adjust.principle': 'Hur ska skillnaden fördelas?',
+  'field.age': 'Ålder',
+  'field.salary': 'Månadslön innan första barnet',
+  'field.agreement': 'Kollektivavtal / föräldralön',
+  'field.partTimePercent': 'Arbetstid, % av heltid',
+  'field.partTimeYears': 'År med deltid',
+  'field.partTimeStartAge': 'Ålder när deltiden började',
+  'field.partTimeStartAuto': 'Automatiskt ({age} år)',
+  'field.childAge': 'Din ålder när barnet föddes',
+  'field.monthsYou': 'Dina månader hemma',
+  'field.monthsPartner': 'Partnerns månader hemma',
+  'field.vabShare': 'Din andel av vab-dagarna, %',
+
+  'assumptions.title': 'Antaganden',
+  'assumptions.sub': 'Standardvärdena följer vanliga antaganden för den här typen av beräkning. Ändra dem om du vet att något annat gäller för er.',
+  'assumptions.reset': 'Återställ antaganden',
+  'assumptions.groupGeneral': 'Allmänt',
+  'assumptions.groupLeave': 'Föräldraledighet',
+  'assumptions.groupVab': 'Vab',
+  'assumptions.groupCareer': 'Löneutveckling',
+  'assumptions.groupPension': 'Pension',
+  'assumptions.groupSavings': 'Sparande',
+  'a.inflation': 'Inflation, % per år',
+  'a.salaryGrowth': 'Löneökning, % per år',
+  'a.retirementAge': 'Pensionsålder',
+  'a.pensionReturn': 'Avkastning på pension, % per år efter avgifter och skatt',
+  'a.payoutYears': 'År med pensionsutbetalning',
+  'a.benefitDaysShare': 'Andel av dagarna hemma med föräldrapenning, %',
+  'a.topUpLevel': 'Föräldralön fyller på lönen till, %',
+  'a.topUpMonths': 'Månader med föräldralön per barn',
+  'a.vabDaysPerChildYear': 'Vab-dagar per barn och år',
+  'a.wagePenalty': 'Lägre lön för den som är hemma, %',
+  'a.wagePenaltyYears': 'År med lägre lön efter första barnet',
+  'a.wagePenaltyPermanent': 'Lönetappet består ända till pension',
+  'a.premiumWaiver': 'Premiebefrielse – tjänstepension betalas under föräldraledighet (kollektivavtal)',
+  'a.premiumWaiverMonths': 'Månader med premiebefrielse per barn',
+  'a.publicPension': 'Räkna även med allmän pension',
+  'a.childYearCredit': 'Barnårsrätt skyddar den allmänna pensionen barnets första fyra år',
+  'a.savingsReturn': 'Avkastning som månadssparandet räknas med, % per år',
+  'a.priceBaseAmount': 'Prisbasbelopp {year}, kr',
+  'a.incomeBaseAmount': 'Inkomstbasbelopp {year}, kr',
+
+  'ways.title': 'Så kan ni jämna ut skillnaden',
+  'ways.sub': 'Det finns flera sätt att kompensera den som har varit hemma mest. Välj det som passar er ekonomi.',
+  'ways.monthly.title': 'Månatlig överföring eller sparande',
+  'ways.monthly.text': 'Den som tjänar mer sätter av ett belopp varje månad till den som varit hemma mest, till exempel som ett sparande i den personens namn.',
+  'ways.lump.title': 'Engångsbelopp',
+  'ways.lump.text': 'Ett större belopp nu eller vid ett tillfälle längre fram, till exempel vid en bostadsförsäljning eller ett arv.',
+  'ways.ppm.title': 'Överför premiepension',
+  'ways.ppm.text': 'Gifta och registrerade partner kan föra över sina framtida premiepensionsrätter till varandra via Pensionsmyndigheten.',
+  'ways.costs.title': 'Dela kostnaderna efter inkomst',
+  'ways.costs.text': 'Fördela hushållets gemensamma utgifter efter inkomst, så att den som har lägre lön kan spara mer själv.',
+  'ways.agreement.title': 'Skriv ner det ni kommit överens om',
+  'ways.agreement.text': 'Är ni gifta delas ett sparande som är giftorättsgods lika vid en skilsmässa – gör det till enskild egendom med ett äktenskapsförord. Är ni sambor delas normalt inte sparpengar vid en separation, men en skriftlig överenskommelse gör det tydligt vad som gäller.',
+
+  'method.title': 'Så räknar vi',
+  'method.sub': 'Modellen är en förenklad uppskattning som bygger på regler från Försäkringskassan och vanliga kollektivavtal samt på statistik om löner och föräldraledighet.',
+  'method.principle.title': 'Principen',
+  'method.principle.text1': 'Vi räknar ut hur mycket var och en av er förlorar i lön och pension på grund av tiden hemma med barnen. Den som har varit hemma mer än halva tiden kompenseras för tiden utöver 50 procent, värderad efter sin egen lön.',
+  'method.principle.text2': 'Exempel: är en förälder hemma 12 månader och den andra 6 hade en jämn fördelning varit 9 månader var. Den första kompenseras för förlusten under 3 månader. Efter kompensationen har ni burit lika stor del av förlusten – som om ni hade delat tiden lika.',
+  'method.leave.title': 'Föräldraledighet',
+  'method.leave.text': 'Under månaderna med föräldralön räknar vi med att inkomsten fylls på till 90 procent av lönen. Övriga månader räknar vi med föräldrapenning 60 procent av dagarna: knappt 80 procent av lönen upp till 10 prisbasbelopp per år under 390 dagar per barn, därefter 180 kr per dag i 90 dagar. Förlusten är skillnaden mot full lön.',
+  'method.partTime.title': 'Deltid',
+  'method.partTime.text': 'Förlusten är den del av lönen som försvinner med kortare arbetstid, varje månad under den tid ni anger. Om inget annat anges börjar deltiden när den första föräldraledigheten är slut.',
+  'method.vab.title': 'Vab',
+  'method.vab.text': 'Vi räknar med 8 vab-dagar per barn och år från ett till tolv års ålder. Vab-ersättningen är knappt 80 procent av lönen upp till 7,5 prisbasbelopp per år – resten är en förlust.',
+  'method.career.title': 'Löneutveckling',
+  'method.career.text': 'Den som är hemma mer med barnen får ofta lägre löneutveckling; studier pekar på ett tapp mellan en och fyra procent. Vi räknar med 2,5 procent lägre lön under fem år från första barnets födelse och fördelar tappet efter hur stor andel av tiden hemma – föräldraledighet och deltid – var och en har tagit.',
+  'method.pension.title': 'Pension',
+  'method.pension.text1': 'Tjänstepensionen beräknas som ITP 1: 4,5 procent av lönen upp till 7,5 inkomstbasbelopp per år och 30 procent på lönedelar över det, utan kollektivavtal 4,5 procent av hela lönen. Med kollektivavtal betalas avsättningarna oftast vidare under de första 13 månaderna av föräldraledigheten (premiebefrielse). Varje utebliven avsättning räknas upp med 6,5 procent avkastning per år fram till i dag – så mycket mindre finns på pensionskontot.',
+  'method.pension.text2': 'Den allmänna pensionen kan räknas med som tillval. Den påverkas sällan de första fyra åren tack vare barnårsrätten, och föräldrapenning och vab-ersättning är pensionsgrundande. Lönedelar över taket (cirka 8 inkomstbasbelopp per år) ger ingen allmän pension. Inkomstpensionen (16 procent) räknas upp med löneökningen och premiepensionen (2,5 procent) med samma avkastning som tjänstepensionen.',
+  'method.money.title': 'Värdet i dag',
+  'method.money.text': 'Alla belopp värderas i dag, så att de går att lägga ihop till ett belopp. Lönen ni anger räknas upp med 2 procent per år från året då första barnet föddes, och förlorad lön räknas om till dagens penningvärde med 2 procents inflation. Uteblivna pensionsavsättningar räknas upp med avkastningen fram till i dag, och förluster som ligger i framtiden räknas ner på samma sätt. Pris- och inkomstbasbelopp följer de faktiska värdena för 2010–2026.',
+  'method.suggestion.title': 'Förslaget',
+  'method.suggestion.text': 'Summan av delarna är det engångsbelopp som jämnar ut skillnaden i dag. Månadsbeloppet är samma värde fördelat över den tid ni väljer. Eftersom pengarna då kommer senare räknas månadsbeloppet med 6,5 procent avkastning per år, så att mottagaren får samma värde som med engångsbeloppet. Avkastningen kan ändras under Antaganden.',
+  'method.limits.title': 'Begränsningar',
+  'method.limits.text': 'Beräkningen är en förenklad uppskattning och inte ekonomisk rådgivning. Alla belopp är före skatt. Vi tar inte hänsyn till garantipension, löneväxling, skillnader mellan olika kollektivavtal, sjukdom, arbetslöshet eller att era löner kan utvecklas olika av andra skäl. Använd resultatet som underlag för ett samtal, inte som en exakt sanning.',
+  'method.sources.title': 'Källor',
+  'method.sources.text': 'Försäkringskassan (föräldrapenning, föräldralön, vab), Pensionsmyndigheten (allmän pension, barnårsrätt, inkomstbasbelopp, premiepension), Collectum och Alecta (ITP 1, premiebefrielse), SCB (prisbasbelopp) och studier om föräldraskap och löneutveckling.',
+
+  'sticky.toYou': 'Till dig',
+  'sticky.toPartner': 'Till din partner',
+  'sticky.even': 'Lika delat',
+
+  'footer.text': 'Lika delat är en fristående kalkylator. Resultatet är en uppskattning och inte finansiell rådgivning.',
+};
+
+const en = {
+  'meta.title': 'Lika delat – parental compensation calculator',
+  'meta.description': 'Work out how much parents should compensate each other for the time at home with the children – lost salary, salary development, part time, care of sick children and pension.',
+  brand: 'Lika delat',
+  'header.tagline': 'Calculator for equal lifetime income',
+  'lang.switch': 'Svenska',
+  'lang.switchLabel': 'Byt till svenska',
+  'unit.kr': 'SEK',
+  'unit.krMonth': 'SEK/month',
+  'unit.years': 'years',
+  'unit.year': 'year',
+  'unit.months': 'mo',
+  'unit.monthsLong': 'months',
+  'unit.days': 'days',
+  'unit.percent': '%',
+
+  'intro.eyebrow': 'Parental calculator',
+  'intro.title': 'What does the time at home with the children cost – and who pays for it?',
+  'intro.lead': 'The parent who stays home the most often loses salary, salary development and pension. Answer a few short questions and we will estimate how much you need to compensate each other – and suggest a lump sum or a monthly saving that evens out the difference.',
+  'intro.point1': 'Parental leave, part time and care of sick children',
+  'intro.point2': 'Salary development and career',
+  'intro.point3': 'Occupational pension – and a savings suggestion',
+  'intro.start': 'Start',
+  'intro.detailed': 'Go straight to the detailed calculation',
+  'intro.resume': 'Show my latest calculation',
+  'intro.privacy': 'Takes about two minutes. Everything is calculated in your browser – no data is sent anywhere.',
+
+  'wizard.progress': 'Question {current} of {total}',
+  'wizard.back': 'Back',
+  'wizard.next': 'Next',
+  'wizard.finish': 'See result',
+  'wizard.help': 'Explanation',
+  'wizard.close': 'Close',
+  'wizard.factTitle': 'Did you know?',
+  'wizard.chooseOption': 'Choose one of the options.',
+
+  'q.age.title': 'How old are you?',
+  'q.age.label': 'Your age',
+  'q.age.error': 'Enter an age between 18 and 66.',
+  'q.age.helpTitle': 'Why does age matter?',
+  'q.age.help1': 'Your age decides how many years are left until retirement. The longer it is, the more lost pension contributions would have grown – and the longer you have to even out the difference.',
+  'q.age.help2': 'We assume your partner is the same age. You can change that in the detailed calculation.',
+
+  'q.salary.title': 'What monthly salary did you have before the first parental leave?',
+  'q.salary.you': 'Your monthly salary',
+  'q.salary.partner': "Your partner's monthly salary",
+  'q.salary.hint': 'Before tax, in SEK.',
+  'q.salary.error': 'Enter a monthly salary between 5,000 and 1,000,000 SEK.',
+  'q.salary.helpTitle': 'Your salary when you became parents',
+  'q.salary.help1': 'Enter the salary you had just before your first child arrived. If you do not remember exactly, an approximate figure is fine.',
+  'q.salary.help2': 'If the first child was born several years ago we adjust the salary for inflation, so that all amounts are shown in today’s money. If you are planning children, enter your current salary.',
+  'q.salary.fact': 'Swedish studies show that mothers’ earnings drop sharply in the first years after the first child and that much of the drop remains ten years later, while fathers’ earnings are affected far less.',
+
+  'q.agreement.title': 'Do you have a collective agreement or parental pay?',
+  'q.agreement.sub': 'Choose Yes if the employer has a collective agreement (kollektivavtal) or otherwise tops up the parental benefit.',
+  'q.agreement.you': 'You',
+  'q.agreement.partner': 'Your partner',
+  'option.yes': 'Yes',
+  'option.no': 'No',
+  'option.unknown': 'Don’t know',
+  'q.agreement.helpTitle': 'Collective agreements and parental pay',
+  'q.agreement.help1': 'With a collective agreement you often get parental pay (föräldralön) – a top-up from the employer on top of the parental benefit. We assume the salary is topped up to 90 percent for the first six months, which is common.',
+  'q.agreement.help2': 'The collective agreement also decides the occupational pension. We assume a pension like ITP 1: 4.5 percent of the salary up to 7.5 income base amounts per year and 30 percent above that. Without an agreement we assume 4.5 percent of the whole salary.',
+  'q.agreement.help3': 'If you choose Don’t know we assume a collective agreement, since most employees in Sweden are covered by one. Ask your employer if you are unsure.',
+
+  'q.vab.title': 'Who usually stays home with sick children?',
+  'option.vab.you': 'Me',
+  'option.vab.partner': 'My partner',
+  'option.vab.equal': 'We share equally',
+  'q.vab.helpTitle': 'Vab – care of a sick child',
+  'q.vab.help1': 'When you stay home with a sick child (vab) you get temporary parental benefit from Försäkringskassan – just under 80 percent of the salary up to 7.5 price base amounts per year. You lose the rest of the salary.',
+  'q.vab.help2': 'We assume 8 vab days per child and year, from the first birthday until the child turns 12. If one of you takes most of them we assume a 70/30 split, otherwise 50/50. You can enter an exact split in the detailed calculation.',
+
+  'q.partTime.title': 'Have you reduced your working hours to take care of the family?',
+  'q.partTime.sub': 'Enter working time as a percentage of full time. Include part time you are planning, too.',
+  'q.partTime.you': 'You',
+  'q.partTime.partner': 'Your partner',
+  'q.partTime.full': 'Full time',
+  'q.partTime.howLong': 'For how long?',
+  'q.partTime.helpTitle': 'Part time',
+  'q.partTime.help1': 'Part time means a lower salary and lower pension contributions for the whole period. 80 percent equals a four-day week.',
+  'q.partTime.help2': 'We assume the part time starts when the first parental leave ends. You can change the starting age in the detailed calculation.',
+  'q.partTime.fact': 'Far more mothers than fathers reduce their working hours when the children are small, and many keep working part time for large parts of the children’s upbringing.',
+
+  'q.children.title': 'How many children do you have?',
+  'q.children.sub': 'Include children you are planning to have.',
+  'q.children.count': 'Number of children',
+  'q.children.decrease': 'One child fewer',
+  'q.children.increase': 'One more child',
+  'q.children.firstAge': 'How old were you when your first child was born?',
+  'q.children.firstAgeError': 'Enter an age between 14 and your current age plus five years.',
+  'q.children.gapHint': 'We assume three years between children.',
+  'q.children.helpTitle': 'Children and parental leaves',
+  'q.children.help1': 'The number of children decides how many parental leaves and how many years of vab we count.',
+  'q.children.help2': 'Your age at the first child decides when the losses happened and how long they affect salary and pension. We assume three years between children – you can change it per child in the detailed calculation.',
+
+  'q.leave.title': 'How long were you at home with the children?',
+  'q.leave.sub': 'Enter how many months each of you was on parental leave. If you are not done yet, enter how long you plan to be at home.',
+  'q.leave.prefilled': 'Prefilled with a common split, 15 and 4 months. Change it to match your situation.',
+  'q.leave.child': 'Child {n}',
+  'q.leave.you': 'You',
+  'q.leave.partner': 'Your partner',
+  'q.leave.helpTitle': 'Parental leave',
+  'q.leave.help1': 'Count the whole time you were at home, not only the days with parental benefit. Many are on leave longer than they claim benefit for – we assume benefit is claimed on 60 percent of the days, except in the months with parental pay.',
+  'q.leave.help2': 'The parental benefit is just under 80 percent of the salary up to 10 price base amounts per year for 390 days per child, then 180 SEK per day for 90 days.',
+  'q.leave.help3': 'On average, mothers are at home for a little over a year and fathers for a few months per child. Exact figures for the days you have used are on Mina sidor at Försäkringskassan.',
+
+  'result.eyebrow': 'Your result',
+  'result.toYou': 'Your partner should compensate you with',
+  'result.toPartner': 'You should compensate your partner with',
+  'result.even': 'You have shared roughly equally',
+  'result.evenText': 'The difference in lost salary and pension is small – no compensation is needed.',
+  'result.lead': 'This is what the difference in lost salary and pension is worth today, before tax.',
+  'result.monthly': '{amount} a month',
+  'result.savingsPeriod': 'Save for',
+  'result.untilRetirement': 'until retirement ({n} years)',
+  'result.pensionMonthly': 'Of the amount, {capital} is lost pension. That corresponds to roughly {amount} lower pension per month for {years} years.',
+
+  'suggest.title': 'Suggestion: how to even it out',
+  'suggest.lumpLabel': 'Option 1 – lump sum today',
+  'suggest.lumpText': 'The whole amount is transferred at once.',
+  'suggest.or': 'or',
+  'suggest.monthlyLabel': 'Option 2 – monthly saving',
+  'suggest.monthlyText': '{total} in total over {years}. The money arrives later than with a lump sum, so the monthly amount includes a {rate} yearly return – that makes the value the same.',
+  'suggest.growth': 'If the money is saved until retirement in {years} years it can grow to roughly {amount} in today’s money.',
+
+  'breakdown.title': 'What the amount consists of',
+  'breakdown.sub': 'The compensation per part. The bar shows how large each part is.',
+  'breakdown.total': 'Total',
+  'breakdown.toYou': 'to you',
+  'breakdown.toPartner': 'to your partner',
+  'legend.toYou': 'Compensation to you',
+  'legend.toPartner': 'Compensation to your partner',
+  'tooltip.you': 'Your loss',
+  'tooltip.partner': 'Partner’s loss',
+  'tooltip.compensation': 'Compensation',
+
+  'row.leave': 'Parental leave',
+  'row.leave.desc': 'Salary not covered by parental benefit and parental pay.',
+  'row.partTime': 'Part time',
+  'row.partTime.desc': 'Salary lost with shorter working hours.',
+  'row.vab': 'Vab',
+  'row.vab.desc': 'Salary deductions not covered by the vab benefit.',
+  'row.career': 'Salary development',
+  'row.career.desc': 'Lower salary for the parent who is home most.',
+  'row.occupationalPension': 'Occupational pension',
+  'row.occupationalPension.desc': 'Lost pension contributions with returns up to today.',
+  'row.publicPension': 'Public pension',
+  'row.publicPension.desc': 'Lower income and premium pension, after child-rearing credits.',
+
+  'compare.title': 'Your losses, one by one',
+  'compare.sub': 'How much each of you is estimated to lose from parenthood, valued today. The compensation evens out the difference.',
+  'compare.you': 'You',
+  'compare.partner': 'Your partner',
+  'compare.total': 'Total loss',
+  'compare.table': 'Show as table',
+  'compare.colPart': 'Part',
+  'compare.colCompensation': 'Compensation',
+  'compare.pensionPerMonth': 'Lower pension per month',
+
+  'facts.title': 'Basis for the calculation',
+  'facts.share': 'Your share of the time at home',
+  'facts.shareValue': '{share} – {you} of {total} months',
+  'facts.salary': 'Salaries in today’s money',
+  'facts.salaryValue': 'You {you} · partner {partner}',
+  'facts.retirement': 'Years until retirement',
+  'facts.retirementValue': 'You {you} · partner {partner}',
+  'facts.principle': 'Compensation principle',
+
+  'explain.title': 'The calculation step by step',
+  'explain.sub': 'This is how we arrived at the amount, with your own numbers. All amounts are valued today and before tax. Open a part to see how it is calculated.',
+  'explain.compensation': 'Compensation',
+  'explain.none': 'There is no difference to compensate here.',
+  'explain.generic': '{amount} {to}.',
+  'explain.equal': 'The difference between your losses is split equally: ({a} − {b}) / 2 = {amount} {to}.',
+  'explain.leave.months': 'Months at home',
+  'explain.leave.salary': 'Salary per month, in today’s money',
+  'explain.leave.benefit': 'Parental benefit and parental pay per month, on average',
+  'explain.leave.lossPerMonth': 'Loss per month (salary − benefit)',
+  'explain.leave.total': 'Lost salary (loss per month × months)',
+  'explain.leave.note.you': 'You were at home {beyond} more than half of your combined parental leave. Your loss for that time is {amount}.',
+  'explain.leave.note.partner': 'Your partner was at home {beyond} more than half of your combined parental leave. Your partner’s loss for that time is {amount}.',
+  'explain.partTime.percent': 'Working time',
+  'explain.partTime.years': 'Time working part time',
+  'explain.partTime.salary': 'Full-time salary per month, in today’s money',
+  'explain.partTime.lossPerMonth': 'Loss per month (salary × reduced working time)',
+  'explain.partTime.total': 'Lost salary (loss per month × months)',
+  'explain.partTime.note.you': 'You have reduced your working time more than your partner. Half of the difference, valued at your salary, is {amount}.',
+  'explain.partTime.note.partner': 'Your partner has reduced their working time more than you. Half of the difference, valued at your partner’s salary, is {amount}.',
+  'explain.vab.share': 'Share of the vab days',
+  'explain.vab.days': 'Vab days in total ({days} per child and year, from age {from} to {to})',
+  'explain.vab.wagePerDay': 'Salary deduction per day',
+  'explain.vab.benefitPerDay': 'Benefit from Försäkringskassan per day',
+  'explain.vab.lossPerDay': 'Loss per day (deduction − benefit)',
+  'explain.vab.total': 'Lost salary (loss per day × days)',
+  'explain.vab.note.you': 'You take {beyond} more than half of the vab days. Your loss for those days is {amount}.',
+  'explain.vab.note.partner': 'Your partner takes {beyond} more than half of the vab days. Your partner’s loss for those days is {amount}.',
+  'explain.career.share': 'Share of the time at home (parental leave and part time)',
+  'explain.career.full': 'Salary drop for a parent taking all the time at home ({penalty} lower salary {period})',
+  'explain.career.years': 'for {n} years',
+  'explain.career.permanent': 'until retirement',
+  'explain.career.total': 'Lost salary (salary drop × share)',
+  'explain.career.note.you': 'You have taken {beyond} percentage points more than half of the time at home. That share of your salary drop is {amount}.',
+  'explain.career.note.partner': 'Your partner has taken {beyond} percentage points more than half of the time at home. That share of your partner’s salary drop is {amount}.',
+  'explain.pension.title': 'Pension',
+  'explain.pension.leave': 'From parental leave',
+  'explain.pension.partTime': 'From part time',
+  'explain.pension.vab': 'From vab',
+  'explain.pension.career': 'From lower salary development',
+  'explain.pension.valueToday': 'Lost pension, value today',
+  'explain.pension.atRetirement': 'That corresponds to, at retirement',
+  'explain.pension.perMonth': 'Lower pension per month for {years} years',
+  'explain.pension.note': 'The pension follows from the parts above and is shared the same way as the salary: {amount} {to}.',
+  'explain.suggest.title': 'The suggestion',
+  'explain.suggest.lumpSum': 'Sum of the parts = lump sum today',
+  'explain.suggest.period': 'Saving period',
+  'explain.suggest.rate': 'Return per year',
+  'explain.suggest.monthly': 'Monthly amount',
+  'explain.suggest.totalPaid': 'Paid in total (monthly amount × number of months)',
+  'explain.suggest.atRetirement': 'Value of the lump sum if saved until retirement ({years} years)',
+  'explain.suggest.note': 'Monthly amount = lump sum × r / (1 − (1 + r)⁻ⁿ), where r is the return per month and n the number of months. That makes the monthly saving worth as much as the lump sum today. With a 0 percent return it is the lump sum divided by the number of months.',
+
+  'principle.excess': 'Time beyond half',
+  'principle.excessDesc': 'The parent who has been home more than half of the time is compensated for the time beyond 50 percent, valued at their own salary.',
+  'principle.equal': 'Split the losses equally',
+  'principle.equalDesc': 'Both parents’ losses are calculated and the difference is split equally, so that you carry equal shares of the household’s total loss. Gives a different result when your salaries differ.',
+
+  'actions.adjust': 'Adjust the calculation',
+  'actions.copy': 'Copy link',
+  'actions.copied': 'Link copied',
+  'actions.copyFailed': 'Could not copy. Copy the address from the browser instead.',
+  'actions.print': 'Print',
+  'actions.restart': 'Start over',
+  'actions.restartConfirm': 'Do you want to start over? Your answers will be cleared.',
+  'actions.toTop': 'To the result',
+
+  'adjust.title': 'Adjust the calculation',
+  'adjust.sub': 'Change the details – the result updates immediately.',
+  'adjust.you': 'You',
+  'adjust.partner': 'Your partner',
+  'adjust.children': 'Children',
+  'adjust.child': 'Child {n}',
+  'adjust.addChild': 'Add child',
+  'adjust.removeChild': 'Remove',
+  'adjust.removeChildLabel': 'Remove child {n}',
+  'adjust.noChildren': 'No children added. Add a child to include parental leave and vab.',
+  'adjust.vab': 'Vab',
+  'adjust.principle': 'How should the difference be shared?',
+  'field.age': 'Age',
+  'field.salary': 'Monthly salary before the first child',
+  'field.agreement': 'Collective agreement / parental pay',
+  'field.partTimePercent': 'Working time, % of full time',
+  'field.partTimeYears': 'Years of part time',
+  'field.partTimeStartAge': 'Age when part time started',
+  'field.partTimeStartAuto': 'Automatic ({age} years)',
+  'field.childAge': 'Your age when the child was born',
+  'field.monthsYou': 'Your months at home',
+  'field.monthsPartner': 'Partner’s months at home',
+  'field.vabShare': 'Your share of the vab days, %',
+
+  'assumptions.title': 'Assumptions',
+  'assumptions.sub': 'The default values follow common assumptions for this kind of calculation. Change them if you know that something else applies to you.',
+  'assumptions.reset': 'Reset assumptions',
+  'assumptions.groupGeneral': 'General',
+  'assumptions.groupLeave': 'Parental leave',
+  'assumptions.groupVab': 'Vab',
+  'assumptions.groupCareer': 'Salary development',
+  'assumptions.groupPension': 'Pension',
+  'assumptions.groupSavings': 'Savings',
+  'a.inflation': 'Inflation, % per year',
+  'a.salaryGrowth': 'Salary growth, % per year',
+  'a.retirementAge': 'Retirement age',
+  'a.pensionReturn': 'Return on pension, % per year after fees and tax',
+  'a.payoutYears': 'Years of pension payments',
+  'a.benefitDaysShare': 'Share of days at home with parental benefit, %',
+  'a.topUpLevel': 'Parental pay tops up the salary to, %',
+  'a.topUpMonths': 'Months with parental pay per child',
+  'a.vabDaysPerChildYear': 'Vab days per child and year',
+  'a.wagePenalty': 'Lower salary for the parent at home, %',
+  'a.wagePenaltyYears': 'Years with lower salary after the first child',
+  'a.wagePenaltyPermanent': 'The salary gap lasts until retirement',
+  'a.premiumWaiver': 'Premium waiver – occupational pension is paid during parental leave (collective agreement)',
+  'a.premiumWaiverMonths': 'Months with premium waiver per child',
+  'a.publicPension': 'Include the public pension',
+  'a.childYearCredit': 'Child-rearing credits protect the public pension for the child’s first four years',
+  'a.savingsReturn': 'Return used for the monthly saving, % per year',
+  'a.priceBaseAmount': 'Price base amount {year}, SEK',
+  'a.incomeBaseAmount': 'Income base amount {year}, SEK',
+
+  'ways.title': 'How you can even out the difference',
+  'ways.sub': 'There are several ways to compensate the parent who has been home the most. Choose what suits your finances.',
+  'ways.monthly.title': 'Monthly transfer or savings',
+  'ways.monthly.text': 'The higher earner sets aside an amount every month for the parent who has been home most, for example as savings in that person’s name.',
+  'ways.lump.title': 'Lump sum',
+  'ways.lump.text': 'A larger amount now or later, for example when you sell your home or receive an inheritance.',
+  'ways.ppm.title': 'Transfer premium pension',
+  'ways.ppm.text': 'Married couples and registered partners can transfer their future premium pension rights to each other through Pensionsmyndigheten.',
+  'ways.costs.title': 'Share costs by income',
+  'ways.costs.text': 'Split the household’s shared expenses by income, so that the lower earner can save more on their own.',
+  'ways.agreement.title': 'Write down what you agree on',
+  'ways.agreement.text': 'If you are married, savings that are marital property are split equally in a divorce – make them separate property with a prenuptial agreement (äktenskapsförord). Cohabiting couples normally do not split savings when separating, but a written agreement makes it clear what applies.',
+
+  'method.title': 'How we calculate',
+  'method.sub': 'The model is a simplified estimate based on rules from Försäkringskassan and common collective agreements, and on statistics on salaries and parental leave.',
+  'method.principle.title': 'The principle',
+  'method.principle.text1': 'We calculate how much each of you loses in salary and pension because of the time at home with the children. The parent who has been home more than half of the time is compensated for the time beyond 50 percent, valued at their own salary.',
+  'method.principle.text2': 'Example: if one parent is at home for 12 months and the other for 6, an even split would have been 9 months each. The first parent is compensated for the loss during 3 months. After the compensation you have carried equal shares of the loss – as if you had shared the time equally.',
+  'method.leave.title': 'Parental leave',
+  'method.leave.text': 'In the months with parental pay we assume the income is topped up to 90 percent of the salary. In other months we assume parental benefit on 60 percent of the days: just under 80 percent of the salary up to 10 price base amounts per year for 390 days per child, then 180 SEK per day for 90 days. The loss is the difference to the full salary.',
+  'method.partTime.title': 'Part time',
+  'method.partTime.text': 'The loss is the part of the salary lost with shorter working hours, every month for the period you enter. Unless you enter otherwise, part time starts when the first parental leave ends.',
+  'method.vab.title': 'Vab',
+  'method.vab.text': 'We assume 8 vab days per child and year from age one to twelve. The vab benefit is just under 80 percent of the salary up to 7.5 price base amounts per year – the rest is a loss.',
+  'method.career.title': 'Salary development',
+  'method.career.text': 'The parent who is home more with the children often gets a lower salary development; studies point to a drop of between one and four percent. We assume a 2.5 percent lower salary for five years from the first child’s birth and share the drop by how large a part of the time at home – parental leave and part time – each of you has taken.',
+  'method.pension.title': 'Pension',
+  'method.pension.text1': 'The occupational pension is calculated like ITP 1: 4.5 percent of the salary up to 7.5 income base amounts per year and 30 percent above that, without a collective agreement 4.5 percent of the whole salary. With a collective agreement the contributions are usually paid during the first 13 months of the parental leave (premium waiver). Every lost contribution is grown with a 6.5 percent yearly return up to today – that is how much less there is in the pension account.',
+  'method.pension.text2': 'The public pension can be included as an option. It is rarely affected during the first four years thanks to child-rearing credits (barnårsrätt), and parental and vab benefits count as pensionable income. Salary above the ceiling (about 8 income base amounts per year) gives no public pension. The income pension (16 percent) is grown with salary growth and the premium pension (2.5 percent) with the same return as the occupational pension.',
+  'method.money.title': 'The value today',
+  'method.money.text': 'All amounts are valued today, so that they can be added up into one amount. The salary you enter grows by 2 percent per year from the year the first child was born, and lost salary is converted to today’s money with 2 percent inflation. Lost pension contributions are grown with the return up to today, and losses that lie in the future are discounted the same way. Price and income base amounts follow the actual values for 2010–2026.',
+  'method.suggestion.title': 'The suggestion',
+  'method.suggestion.text': 'The sum of the parts is the lump sum that evens out the difference today. The monthly amount is the same value spread over the period you choose. Because the money then arrives later, the monthly amount includes a 6.5 percent yearly return, so that the receiver gets the same value as with the lump sum. The return can be changed under Assumptions.',
+  'method.limits.title': 'Limitations',
+  'method.limits.text': 'The calculation is a simplified estimate and not financial advice. All amounts are before tax. We do not take guarantee pension, salary exchange, differences between collective agreements, illness, unemployment or other reasons why your salaries may develop differently into account. Use the result as a basis for a conversation, not as an exact truth.',
+  'method.sources.title': 'Sources',
+  'method.sources.text': 'Försäkringskassan (parental benefit, parental pay, vab), Pensionsmyndigheten (public pension, child-rearing credits, income base amount, premium pension), Collectum and Alecta (ITP 1, premium waiver), Statistics Sweden (price base amount) and studies on parenthood and salary development.',
+
+  'sticky.toYou': 'To you',
+  'sticky.toPartner': 'To your partner',
+  'sticky.even': 'Shared equally',
+
+  'footer.text': 'Lika delat is an independent calculator. The result is an estimate and not financial advice.',
+};
+
+const LANGUAGES = { sv, en };
+
+let current = 'sv';
+
+function setLanguage(lang) {
+  current = LANGUAGES[lang] ? lang : 'sv';
+  return current;
+}
+
+function getLanguage() {
+  return current;
+}
+
+function t(key, values = {}) {
+  const text = LANGUAGES[current][key] ?? LANGUAGES.sv[key] ?? key;
+  return text.replace(/\{(\w+)\}/g, (match, name) => (name in values ? String(values[name]) : match));
+}
+
+function locale() {
+  return current === 'en' ? 'en-GB' : 'sv-SE';
+}
+return { LANGUAGES, setLanguage, getLanguage, t, locale };
+})();
+
+// ---- assets/js/dom.js ----
+__modules["assets/js/dom.js"] = (() => {
+const { locale, t } = __modules["assets/js/i18n.js"];
+
+/**
+ * Tiny hyperscript helper. Children may be strings, numbers, nodes, arrays,
+ * null or false. Text is always inserted as text nodes (never as HTML).
+ */
+function h(tag, attrs = {}, ...children) {
+  const el = document.createElement(tag);
+  for (const [key, value] of Object.entries(attrs ?? {})) {
+    if (value === null || value === undefined || value === false) continue;
+    if (key === 'class') el.className = value;
+    else if (key === 'style' && typeof value === 'object') {
+      for (const [prop, v] of Object.entries(value)) {
+        if (prop.startsWith('--')) el.style.setProperty(prop, String(v));
+        else el.style[prop] = v;
+      }
+    }
+    else if (key === 'dataset') Object.assign(el.dataset, value);
+    else if (key.startsWith('on') && typeof value === 'function') el.addEventListener(key.slice(2).toLowerCase(), value);
+    else if (value === true) el.setAttribute(key, '');
+    else el.setAttribute(key, String(value));
+  }
+  append(el, children);
+  return el;
+}
+
+function append(el, children) {
+  for (const child of children.flat(Infinity)) {
+    if (child === null || child === undefined || child === false) continue;
+    el.append(child instanceof Node ? child : document.createTextNode(String(child)));
+  }
+  return el;
+}
+
+function clear(el) {
+  while (el.firstChild) el.removeChild(el.firstChild);
+  return el;
+}
+
+let idCounter = 0;
+function uid(prefix = 'id') {
+  idCounter += 1;
+  return `${prefix}-${idCounter}`;
+}
+
+// ---------------------------------------------------------------------------
+// Number formatting
+// ---------------------------------------------------------------------------
+
+function formatNumber(value, digits = 0) {
+  return new Intl.NumberFormat(locale(), {
+    maximumFractionDigits: digits,
+    minimumFractionDigits: digits,
+  }).format(value);
+}
+
+/** Money rounded to a sensible precision: 836 395 → 836 000. */
+function roundMoney(value) {
+  const abs = Math.abs(value);
+  const step = abs >= 100000 ? 1000 : abs >= 10000 ? 100 : abs >= 1000 ? 10 : 1;
+  return Math.round(value / step) * step;
+}
+
+function formatMoney(value, { round = true } = {}) {
+  const amount = round ? roundMoney(value) : Math.round(value);
+  const formatted = formatNumber(Math.abs(amount));
+  const sign = amount < 0 ? '−' : '';
+  return locale() === 'sv-SE' ? `${sign}${formatted} ${t('unit.kr')}` : `${sign}${t('unit.kr')} ${formatted}`;
+}
+
+function formatMoneyPerMonth(value) {
+  const formatted = formatNumber(Math.abs(roundMoney(value)));
+  return `${formatted} ${t('unit.krMonth')}`;
+}
+
+function formatPercent(fraction, digits = 0) {
+  return new Intl.NumberFormat(locale(), {
+    style: 'percent',
+    maximumFractionDigits: digits,
+    minimumFractionDigits: digits,
+  }).format(fraction);
+}
+
+/** Parse "45 000", "45,5" or "45.5" into a number; returns NaN when empty. */
+function parseNumber(text) {
+  if (typeof text === 'number') return text;
+  const cleaned = String(text ?? '')
+    .trim()
+    .replace(/[\s  ]/g, '')
+    .replace(/kr$/i, '')
+    .replace(',', '.');
+  if (cleaned === '') return NaN;
+  return Number(cleaned);
+}
+
+/** Format a salary for an input field without currency: 45000 → "45 000". */
+function formatInputNumber(value) {
+  if (value === null || value === undefined || Number.isNaN(value)) return '';
+  return formatNumber(value);
+}
+return { h, append, clear, uid, formatNumber, roundMoney, formatMoney, formatMoneyPerMonth, formatPercent, parseNumber, formatInputNumber };
+})();
+
+// ---- assets/js/controls.js ----
+__modules["assets/js/controls.js"] = (() => {
+const { h, uid, parseNumber, formatInputNumber } = __modules["assets/js/dom.js"];
+
+/** Labelled text input for numbers (formats thousands when `format` is set). */
+function fieldNumber({ label, value, onInput, unit, hint, autofocus, id = uid('f'), min, max, error, inputmode = 'numeric', format = false }) {
+  const describedBy = [hint ? `${id}-hint` : null, error ? `${id}-error` : null].filter(Boolean).join(' ') || null;
+  const input = h('input', {
+    id,
+    type: 'text',
+    inputmode,
+    autocomplete: 'off',
+    class: 'input',
+    value: format ? formatInputNumber(value) : (value ?? ''),
+    'aria-describedby': describedBy,
+    'aria-invalid': error ? 'true' : null,
+    'data-autofocus': autofocus || null,
+    'data-min': min,
+    'data-max': max,
+    oninput: (e) => onInput(parseNumber(e.target.value)),
+    onblur: (e) => {
+      const n = parseNumber(e.target.value);
+      if (format && Number.isFinite(n)) e.target.value = formatInputNumber(n);
+    },
+  });
+  return h('div', { class: 'field' },
+    h('label', { class: 'field__label', for: id }, label),
+    h('div', { class: 'input-wrap' }, input, unit ? h('span', { class: 'input-wrap__unit', 'aria-hidden': 'true' }, unit) : null),
+    hint ? h('p', { class: 'field__hint', id: `${id}-hint` }, hint) : null,
+    error ? h('p', { class: 'field__error', id: `${id}-error`, role: 'alert' }, error) : null);
+}
+
+/** A group of pill-shaped radio buttons. */
+function pills({ legend, name, options, value, onChange, hideLegend = false, error }) {
+  const groupName = name ?? uid('pills');
+  return h('fieldset', { class: 'pills' },
+    h('legend', { class: hideLegend ? 'visually-hidden' : 'pills__legend' }, legend),
+    h('div', { class: 'pills__options' },
+      options.map((opt) => {
+        const id = uid('opt');
+        return h('span', { class: 'pill' },
+          h('input', {
+            type: 'radio',
+            id,
+            name: groupName,
+            value: String(opt.value),
+            checked: value === opt.value,
+            onchange: () => onChange(opt.value),
+          }),
+          h('label', { for: id }, opt.label));
+      })),
+    error ? h('p', { class: 'field__error', role: 'alert' }, error) : null);
+}
+
+function slider({ label, value, min, max, step = 1, format, onInput, id = uid('range') }) {
+  const output = h('output', { class: 'slider__value', for: id }, format(value));
+  return h('div', { class: 'slider' },
+    h('div', { class: 'slider__head' },
+      h('label', { for: id, class: 'slider__label' }, label),
+      output),
+    h('input', {
+      type: 'range',
+      id,
+      min,
+      max,
+      step,
+      value,
+      class: 'slider__input',
+      style: { '--fill': `${((value - min) / (max - min)) * 100}%` },
+      'aria-valuetext': format(value),
+      oninput: (e) => {
+        const v = Number(e.target.value);
+        output.textContent = format(v);
+        e.target.setAttribute('aria-valuetext', format(v));
+        e.target.style.setProperty('--fill', `${((v - min) / (max - min)) * 100}%`);
+        onInput(v);
+      },
+    }));
+}
+return { fieldNumber, pills, slider };
+})();
+
+// ---- assets/js/results.js ----
+__modules["assets/js/results.js"] = (() => {
+const { calculate, createChild, DEFAULT_ASSUMPTIONS } = __modules["assets/js/calculator.js"];
+const { h, clear, uid, formatMoney, formatMoneyPerMonth, formatNumber, formatPercent, parseNumber, formatInputNumber } = __modules["assets/js/dom.js"];
+const { t } = __modules["assets/js/i18n.js"];
+
+const ROW_KEYS = ['leave', 'partTime', 'vab', 'career', 'occupationalPension', 'publicPension'];
+
+let lastResult = null;
+let heroObserver = null;
+
+// ---------------------------------------------------------------------------
+// Entry points
+// ---------------------------------------------------------------------------
+
+function renderResults(root, ctx) {
+  const result = calculate(ctx.input);
+  lastResult = result;
+
+  const page = h('div', { class: 'results' },
+    h('section', { class: 'card hero', id: 'result-hero', 'aria-live': 'polite' }),
+    h('div', { class: 'results__grid' },
+      h('section', { class: 'card', id: 'result-breakdown', 'aria-labelledby': 'breakdown-title' }),
+      h('section', { class: 'card', id: 'result-compare', 'aria-labelledby': 'compare-title' })),
+    h('section', { class: 'card facts', id: 'result-facts', 'aria-labelledby': 'facts-title' }),
+    h('section', { class: 'card explain', id: 'result-explain', 'aria-labelledby': 'explain-title' }),
+    renderAdjust(ctx),
+    renderWays(),
+    renderMethod(),
+    h('div', { class: 'sticky-summary', id: 'sticky-summary', hidden: true }));
+
+  root.append(page);
+  fillDynamic(root, ctx, result);
+  observeHero(root);
+}
+
+/** Re-render the parts that depend on the result, keeping focus. */
+function updateResults(root, ctx) {
+  const activeId = document.activeElement?.id;
+  const result = calculate(ctx.input);
+  lastResult = result;
+  fillDynamic(root, ctx, result);
+  if (activeId && document.activeElement?.id !== activeId) document.getElementById(activeId)?.focus();
+}
+
+function fillDynamic(root, ctx, result) {
+  replace(root.querySelector('#result-hero'), renderHero(ctx, result));
+  replace(root.querySelector('#result-breakdown'), renderBreakdown(result));
+  replace(root.querySelector('#result-compare'), renderCompare(result));
+  replace(root.querySelector('#result-facts'), renderFacts(result));
+  replace(root.querySelector('#result-explain'), renderExplain(root, result));
+  replace(root.querySelector('#sticky-summary'), renderSticky(result));
+  syncPartTimePlaceholders(root, result);
+}
+
+function replace(el, children) {
+  if (!el) return;
+  clear(el);
+  for (const child of [children].flat()) if (child) el.append(child);
+}
+
+// ---------------------------------------------------------------------------
+// Hero: the headline amount and how it can be evened out
+// ---------------------------------------------------------------------------
+
+function directionText(result) {
+  if (result.direction === 'toYou') return t('result.toYou');
+  if (result.direction === 'toPartner') return t('result.toPartner');
+  return t('result.even');
+}
+
+const SAVINGS_YEARS = [1, 3, 5, 10, 15, 20];
+
+function renderHero(ctx, result) {
+  const { savings, pension } = result;
+  const even = result.direction === 'even';
+  const A = ctx.input.assumptions;
+
+  const options = SAVINGS_YEARS.filter((n) => n < savings.maxYears);
+  const selected = options.includes(ctx.input.savingsYears) ? ctx.input.savingsYears : null;
+  const select = h('select', {
+    id: 'savings-years',
+    class: 'select select--inline',
+    onchange: (e) => {
+      ctx.input.savingsYears = e.target.value === 'retirement' ? null : Number(e.target.value);
+      ctx.changed();
+    },
+  },
+  options.map((n) => h('option', { value: String(n), selected: selected === n }, formatYears(n))),
+  h('option', { value: 'retirement', selected: selected === null }, t('result.untilRetirement', { n: savings.maxYears })));
+
+  // A link to a local file only works on this computer, so it is not offered.
+  const canShare = window.location.protocol !== 'file:';
+
+  return [
+    h('div', { class: 'hero__main' },
+      h('p', { class: 'eyebrow' }, t('result.eyebrow')),
+      h('h1', { class: 'hero__direction', tabindex: '-1', 'data-autofocus': true }, directionText(result)),
+      even ? null : h('p', { class: `hero__amount hero__amount--${result.direction}` }, formatMoney(savings.lumpSum)),
+      h('p', { class: 'hero__lead' }, even ? t('result.evenText') : t('result.lead')),
+      h('div', { class: 'hero__actions' },
+        h('a', { class: 'button button--primary', href: '#adjust', onclick: (e) => scrollToAdjust(e) }, t('actions.adjust')),
+        canShare
+          ? h('button', { type: 'button', class: 'button button--ghost button--small', id: 'copy-link', onclick: (e) => copyLink(e.currentTarget, ctx) }, t('actions.copy'))
+          : null,
+        h('button', { type: 'button', class: 'button button--ghost button--small', id: 'print', onclick: () => window.print() }, t('actions.print')),
+        h('button', { type: 'button', class: 'button button--ghost button--small', id: 'restart', onclick: () => ctx.restart() }, t('actions.restart')))),
+    even ? null : h('div', { class: 'suggest' },
+      h('h2', { class: 'suggest__title' }, t('suggest.title')),
+      h('div', { class: 'suggest__option' },
+        h('p', { class: 'suggest__label' }, t('suggest.lumpLabel')),
+        h('p', { class: 'suggest__value', id: 'suggest-lump' }, formatMoney(savings.lumpSum)),
+        h('p', { class: 'hero__note' }, t('suggest.lumpText'))),
+      h('p', { class: 'suggest__or' }, t('suggest.or')),
+      h('div', { class: 'suggest__option' },
+        h('p', { class: 'suggest__label' }, t('suggest.monthlyLabel')),
+        h('p', { class: 'suggest__value', id: 'suggest-monthly' }, t('result.monthly', { amount: formatMoney(savings.monthly) })),
+        h('div', { class: 'field field--inline' },
+          h('label', { for: 'savings-years', class: 'field__label' }, t('result.savingsPeriod')),
+          select),
+        h('p', { class: 'hero__note' }, t('suggest.monthlyText', {
+          total: formatMoney(savings.totalPaid),
+          years: formatYears(savings.years),
+          rate: formatPercent(A.savingsReturn, 1),
+        }))),
+      savings.yearsToRetirement > 0
+        ? h('p', { class: 'hero__note' }, t('suggest.growth', {
+          years: formatNumber(savings.yearsToRetirement),
+          amount: formatMoney(savings.valueAtRetirement),
+        }))
+        : null,
+      pension.compensation.perMonth >= 1
+        ? h('p', { class: 'hero__note' }, t('result.pensionMonthly', {
+          capital: formatMoney(pension.compensation.valueToday),
+          amount: formatMoney(pension.compensation.perMonth),
+          years: formatNumber(A.payoutYears),
+        }))
+        : null),
+  ];
+}
+
+function scrollToAdjust(event) {
+  event.preventDefault();
+  const target = document.getElementById('adjust');
+  target?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  target?.querySelector('input, select')?.focus({ preventScroll: true });
+}
+
+async function copyLink(button, ctx) {
+  const url = ctx.shareUrl();
+  const original = t('actions.copy');
+  try {
+    await navigator.clipboard.writeText(url);
+    button.textContent = t('actions.copied');
+  } catch {
+    window.prompt(t('actions.copyFailed'), url);
+  }
+  setTimeout(() => { if (button.isConnected) button.textContent = original; }, 2500);
+}
+
+// ---------------------------------------------------------------------------
+// Breakdown: compensation per part as a bar list
+// ---------------------------------------------------------------------------
+
+function renderBreakdown(result) {
+  const rows = result.rows.filter((r) => ROW_KEYS.includes(r.key));
+  const max = Math.max(1, ...rows.map((r) => Math.abs(r.amount)));
+  const hasToPartner = rows.some((r) => r.amount < -0.5);
+  const hasToYou = rows.some((r) => r.amount > 0.5);
+  const tooltip = h('div', { class: 'tooltip', role: 'presentation', hidden: true });
+
+  const list = h('ul', { class: 'bar-list' },
+    rows.map((row) => {
+      const dir = row.amount < 0 ? 'toPartner' : 'toYou';
+      const share = Math.abs(row.amount) / max;
+      const item = h('li', { class: 'bar-list__row' },
+        h('div', { class: 'bar-list__label' },
+          h('span', { class: 'bar-list__name' }, t(`row.${row.key}`)),
+          h('span', { class: 'bar-list__desc' }, t(`row.${row.key}.desc`))),
+        h('div', { class: 'bar-list__track', 'aria-hidden': 'true' },
+          share > 0.001 ? h('span', { class: `bar bar--${dir}`, style: { width: `${Math.max(share * 100, 1.5)}%` } }) : null),
+        h('div', { class: 'bar-list__value' },
+          h('span', { class: 'num' }, formatMoney(Math.abs(row.amount))),
+          Math.abs(row.amount) > 0.5 && hasToPartner
+            ? h('span', { class: 'bar-list__dir' }, t(row.amount < 0 ? 'breakdown.toPartner' : 'breakdown.toYou'))
+            : null));
+      attachTooltip(item, tooltip, () => [
+        [t('tooltip.you'), formatMoney(row.you)],
+        [t('tooltip.partner'), formatMoney(row.partner)],
+        [t('tooltip.compensation'), `${formatMoney(Math.abs(row.amount))}${Math.abs(row.amount) > 0.5 ? ` ${t(row.amount < 0 ? 'breakdown.toPartner' : 'breakdown.toYou')}` : ''}`],
+      ], t(`row.${row.key}`));
+      return item;
+    }),
+    h('li', { class: 'bar-list__row bar-list__row--total' },
+      h('div', { class: 'bar-list__label' }, h('span', { class: 'bar-list__name' }, t('breakdown.total'))),
+      h('div', { class: 'bar-list__track', 'aria-hidden': 'true' }),
+      h('div', { class: 'bar-list__value' },
+        h('span', { class: 'num' }, formatMoney(Math.abs(result.total))),
+        result.direction !== 'even'
+          ? h('span', { class: 'bar-list__dir' }, t(result.direction === 'toPartner' ? 'breakdown.toPartner' : 'breakdown.toYou'))
+          : null)));
+
+  return [
+    h('h2', { class: 'card__title', id: 'breakdown-title' }, t('breakdown.title')),
+    h('p', { class: 'card__sub' }, t('breakdown.sub')),
+    hasToPartner && hasToYou
+      ? h('ul', { class: 'legend' },
+        h('li', {}, h('span', { class: 'swatch swatch--toYou', 'aria-hidden': 'true' }), t('legend.toYou')),
+        h('li', {}, h('span', { class: 'swatch swatch--toPartner', 'aria-hidden': 'true' }), t('legend.toPartner')))
+      : null,
+    h('div', { class: 'chart' }, list, tooltip),
+  ];
+}
+
+function attachTooltip(target, tooltip, linesFn, title) {
+  const show = (event) => {
+    clear(tooltip);
+    tooltip.append(
+      h('p', { class: 'tooltip__title' }, title),
+      ...linesFn().map(([label, value]) => h('p', { class: 'tooltip__line' }, h('span', {}, label), h('span', { class: 'num' }, value))),
+    );
+    tooltip.hidden = false;
+    move(event);
+  };
+  const move = (event) => {
+    const box = tooltip.parentElement.getBoundingClientRect();
+    const x = Math.min(event.clientX - box.left + 14, box.width - tooltip.offsetWidth - 4);
+    const y = event.clientY - box.top + 14;
+    tooltip.style.transform = `translate(${Math.max(0, x)}px, ${y}px)`;
+  };
+  target.addEventListener('pointerenter', (e) => { if (e.pointerType !== 'touch') show(e); });
+  target.addEventListener('pointermove', (e) => { if (!tooltip.hidden) move(e); });
+  target.addEventListener('pointerleave', () => { tooltip.hidden = true; });
+}
+
+// ---------------------------------------------------------------------------
+// Compare: each parent's own losses, grouped bars + table view
+// ---------------------------------------------------------------------------
+
+function renderCompare(result) {
+  const rows = result.rows;
+  const max = Math.max(1, ...rows.flatMap((r) => [r.you, r.partner]));
+  const tooltip = h('div', { class: 'tooltip', role: 'presentation', hidden: true });
+
+  const bar = (who, value) => h('div', { class: 'pair__bar' },
+    h('span', { class: 'visually-hidden' }, `${t(`compare.${who}`)}: `),
+    value / max > 0.001 ? h('span', { class: `bar bar--${who}`, style: { '--v': value / max }, 'aria-hidden': 'true' }) : h('span', { class: 'bar bar--empty', 'aria-hidden': 'true' }),
+    h('span', { class: 'pair__value num' }, formatMoney(value)));
+
+  const pairs = h('ul', { class: 'pairs' },
+    rows.map((row) => {
+      const item = h('li', { class: 'pair' },
+        h('p', { class: 'pair__label' }, t(`row.${row.key}`)),
+        bar('you', row.you),
+        bar('partner', row.partner));
+      attachTooltip(item, tooltip, () => [
+        [t('compare.you'), formatMoney(row.you)],
+        [t('compare.partner'), formatMoney(row.partner)],
+      ], t(`row.${row.key}`));
+      return item;
+    }));
+
+  const table = h('table', { class: 'data-table' },
+    h('thead', {}, h('tr', {},
+      h('th', { scope: 'col' }, t('compare.colPart')),
+      h('th', { scope: 'col', class: 'num' }, t('compare.you')),
+      h('th', { scope: 'col', class: 'num' }, t('compare.partner')),
+      h('th', { scope: 'col', class: 'num' }, t('compare.colCompensation')))),
+    h('tbody', {},
+      rows.map((row) => h('tr', {},
+        h('th', { scope: 'row' }, t(`row.${row.key}`)),
+        h('td', { class: 'num' }, formatMoney(row.you)),
+        h('td', { class: 'num' }, formatMoney(row.partner)),
+        h('td', { class: 'num' }, signedCompensation(row.amount))))),
+    h('tfoot', {},
+      h('tr', {},
+        h('th', { scope: 'row' }, t('compare.total')),
+        h('td', { class: 'num' }, formatMoney(result.losses.you)),
+        h('td', { class: 'num' }, formatMoney(result.losses.partner)),
+        h('td', { class: 'num' }, signedCompensation(result.total))),
+      h('tr', {},
+        h('th', { scope: 'row' }, t('compare.pensionPerMonth')),
+        h('td', { class: 'num' }, formatMoneyPerMonth(result.pension.you.perMonth)),
+        h('td', { class: 'num' }, formatMoneyPerMonth(result.pension.partner.perMonth)),
+        h('td', {}))));
+
+  return [
+    h('h2', { class: 'card__title', id: 'compare-title' }, t('compare.title')),
+    h('p', { class: 'card__sub' }, t('compare.sub')),
+    h('ul', { class: 'legend' },
+      h('li', {}, h('span', { class: 'swatch swatch--you', 'aria-hidden': 'true' }), t('compare.you')),
+      h('li', {}, h('span', { class: 'swatch swatch--partner', 'aria-hidden': 'true' }), t('compare.partner'))),
+    h('div', { class: 'chart' }, pairs, tooltip),
+    h('div', { class: 'compare__totals' },
+      h('p', {}, h('span', { class: 'swatch swatch--you', 'aria-hidden': 'true' }), `${t('compare.you')}: `, h('strong', { class: 'num' }, formatMoney(result.losses.you))),
+      h('p', {}, h('span', { class: 'swatch swatch--partner', 'aria-hidden': 'true' }), `${t('compare.partner')}: `, h('strong', { class: 'num' }, formatMoney(result.losses.partner)))),
+    h('details', { class: 'disclosure' },
+      h('summary', {}, t('compare.table')),
+      h('div', { class: 'table-scroll' }, table)),
+  ];
+}
+
+function formatMonths(months) {
+  const rounded = Math.round(months * 10) / 10;
+  return formatNumber(rounded, Number.isInteger(rounded) ? 0 : 1);
+}
+
+function formatYears(years) {
+  return `${formatMonths(years)} ${t(years === 1 ? 'unit.year' : 'unit.years')}`;
+}
+
+function signedCompensation(amount) {
+  if (Math.abs(amount) < 0.5) return formatMoney(0);
+  return `${formatMoney(Math.abs(amount))} ${t(amount < 0 ? 'breakdown.toPartner' : 'breakdown.toYou')}`;
+}
+
+// ---------------------------------------------------------------------------
+// Facts
+// ---------------------------------------------------------------------------
+
+function renderFacts(result) {
+  const { facts, input } = result;
+  const totalMonths = facts.homeMonths.you.total + facts.homeMonths.partner.total;
+  const item = (label, value) => h('div', { class: 'facts__item' }, h('dt', {}, label), h('dd', {}, value));
+  return [
+    h('h2', { class: 'card__title', id: 'facts-title' }, t('facts.title')),
+    h('dl', { class: 'facts__list' },
+      item(t('facts.share'), t('facts.shareValue', {
+        share: formatPercent(facts.shareYou),
+        you: formatMonths(facts.homeMonths.you.total),
+        total: formatMonths(totalMonths),
+      })),
+      item(t('facts.salary'), t('facts.salaryValue', {
+        you: formatMoney(facts.salaryToday.you),
+        partner: formatMoney(facts.salaryToday.partner),
+      })),
+      item(t('facts.retirement'), t('facts.retirementValue', {
+        you: `${facts.yearsToRetirement.you} ${t('unit.years')}`,
+        partner: `${facts.yearsToRetirement.partner} ${t('unit.years')}`,
+      })),
+      item(t('facts.principle'), t(`principle.${input.principle}`))),
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// Step by step: the figures behind every part, with the family's own numbers
+// ---------------------------------------------------------------------------
+
+const EXPLAIN_FORMATS = {
+  money: (v) => formatMoney(v),
+  perMonth: (v) => formatMoneyPerMonth(v),
+  months: (v) => `${formatMonths(v)} ${t('unit.months')}`,
+  years: (v) => formatYears(v),
+  days: (v) => `${formatMonths(v)} ${t('unit.days')}`,
+  percent: (v) => formatPercent(v),
+};
+
+/** [key in result.explain[who][part], format, is the sum of the part] */
+const EXPLAIN_PARTS = [
+  ['leave', [['months', 'months'], ['salary', 'perMonth'], ['benefit', 'perMonth'], ['lossPerMonth', 'perMonth'], ['total', 'money', true]]],
+  ['partTime', [['percent', 'percent'], ['years', 'years'], ['salary', 'perMonth'], ['lossPerMonth', 'perMonth'], ['total', 'money', true]]],
+  ['vab', [['share', 'percent'], ['days', 'days'], ['wagePerDay', 'money'], ['benefitPerDay', 'money'], ['lossPerDay', 'money'], ['total', 'money', true]]],
+  ['career', [['share', 'percent'], ['full', 'money'], ['total', 'money', true]]],
+  ['pension', [['leave', 'money'], ['partTime', 'money'], ['vab', 'money'], ['career', 'money'], ['valueToday', 'money', true], ['atRetirement', 'money'], ['perMonth', 'perMonth']]],
+];
+
+function explainNote(part, result, row) {
+  const { explain, input } = result;
+  const { amount } = row;
+  if (Math.abs(amount) < 0.5) return t('explain.none');
+  const who = amount > 0 ? 'you' : 'partner';
+  const values = {
+    amount: formatMoney(Math.abs(amount)),
+    to: t(amount > 0 ? 'breakdown.toYou' : 'breakdown.toPartner'),
+  };
+  if (input.principle === 'equal') {
+    return t('explain.equal', { ...values, a: formatMoney(row.you), b: formatMoney(row.partner) });
+  }
+  if (part === 'pension') return t('explain.pension.note', values);
+  const beyond = explain.beyondHalf[part] * (amount > 0 ? 1 : -1);
+  if (!(beyond > 0)) return t('explain.generic', values);
+  const beyondText = {
+    leave: () => EXPLAIN_FORMATS.months(beyond),
+    partTime: () => '',
+    vab: () => EXPLAIN_FORMATS.days(beyond),
+    career: () => formatNumber(beyond * 100, 0),
+  }[part]();
+  return t(`explain.${part}.note.${who}`, { ...values, beyond: beyondText });
+}
+
+function renderExplain(root, result) {
+  const { explain, input, savings } = result;
+  const A = input.assumptions;
+  const byKey = Object.fromEntries(result.rows.map((r) => [r.key, r]));
+  const pensionRows = ['occupationalPension', 'publicPension'].map((key) => byKey[key]).filter(Boolean);
+  const rowFor = (part) => (part === 'pension'
+    ? {
+      amount: pensionRows.reduce((acc, r) => acc + r.amount, 0),
+      you: pensionRows.reduce((acc, r) => acc + r.you, 0),
+      partner: pensionRows.reduce((acc, r) => acc + r.partner, 0),
+    }
+    : byKey[part]);
+
+  const labelValues = {
+    days: formatNumber(A.vabDaysPerChildYear),
+    from: formatNumber(A.vabFromAge),
+    to: formatNumber(A.vabToAge),
+    penalty: formatPercent(A.wagePenalty, 1),
+    period: A.wagePenaltyPermanent
+      ? t('explain.career.permanent')
+      : t('explain.career.years', { n: formatNumber(A.wagePenaltyYears) }),
+    years: formatNumber(A.payoutYears),
+  };
+  const cell = (value, format) => h('td', { class: 'num' },
+    value === null || value === undefined ? '–' : EXPLAIN_FORMATS[format](value));
+
+  // Keep the parts the reader has opened when the result is re-rendered.
+  const open = new Set([...root.querySelectorAll('#result-explain details[open]')].map((d) => d.dataset.part));
+
+  const part = (key, title, amountText, content) => h('details', { class: 'explain__part', dataset: { part: key }, open: open.has(key) },
+    h('summary', {},
+      h('span', { class: 'explain__name' }, title),
+      h('span', { class: 'explain__amount num' }, amountText)),
+    content);
+
+  const parts = EXPLAIN_PARTS.map(([key, lines]) => {
+    const row = rowFor(key);
+    return part(key, t(key === 'pension' ? 'explain.pension.title' : `row.${key}`), signedCompensation(row.amount), [
+      h('div', { class: 'table-scroll' },
+        h('table', { class: 'data-table explain__table' },
+          h('thead', {}, h('tr', {},
+            h('td', {}),
+            h('th', { scope: 'col', class: 'num' }, t('compare.you')),
+            h('th', { scope: 'col', class: 'num' }, t('compare.partner')))),
+          h('tbody', {}, lines.map(([field, format, isTotal]) => h('tr', { class: isTotal ? 'is-total' : null },
+            h('th', { scope: 'row' }, t(`explain.${key}.${field}`, labelValues)),
+            cell(explain.you[key][field], format),
+            cell(explain.partner[key][field], format)))))),
+      h('p', { class: 'explain__note' }, h('strong', {}, `${t('explain.compensation')}: `), explainNote(key, result, row)),
+    ]);
+  });
+
+  const suggestionLines = [
+    ['lumpSum', formatMoney(savings.lumpSum), true],
+    ['period', `${formatYears(savings.years)} (${formatNumber(savings.months)} ${t('unit.months')})`],
+    ['rate', formatPercent(savings.rate, 1)],
+    ['monthly', formatMoneyPerMonth(savings.monthly), true],
+    ['totalPaid', formatMoney(savings.totalPaid)],
+    ['atRetirement', formatMoney(savings.valueAtRetirement)],
+  ];
+  const suggestion = result.direction === 'even' ? null : part('suggestion', t('explain.suggest.title'),
+    `${formatMoney(savings.lumpSum)} · ${formatMoneyPerMonth(savings.monthly)}`, [
+      h('div', { class: 'table-scroll' },
+        h('table', { class: 'data-table explain__table' },
+          h('tbody', {}, suggestionLines.map(([field, value, isTotal]) => h('tr', { class: isTotal ? 'is-total' : null },
+            h('th', { scope: 'row' }, t(`explain.suggest.${field}`, { years: formatNumber(savings.yearsToRetirement) })),
+            h('td', { class: 'num' }, value)))))),
+      h('p', { class: 'explain__note' }, t('explain.suggest.note')),
+    ]);
+
+  return [
+    h('h2', { class: 'card__title', id: 'explain-title' }, t('explain.title')),
+    h('p', { class: 'card__sub' }, t('explain.sub')),
+    h('div', { class: 'explain__parts' }, parts, suggestion),
+  ];
+}
+
+// Print everything, including the parts that are folded.
+if (typeof window !== 'undefined') {
+  let folded = [];
+  window.addEventListener('beforeprint', () => {
+    folded = [...document.querySelectorAll('details:not([open])')];
+    folded.forEach((d) => { d.open = true; });
+  });
+  window.addEventListener('afterprint', () => {
+    folded.forEach((d) => { d.open = false; });
+    folded = [];
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Sticky summary bar
+// ---------------------------------------------------------------------------
+
+function renderSticky(result) {
+  const label = result.direction === 'even' ? t('sticky.even') : t(`sticky.${result.direction}`);
+  return h('div', { class: 'sticky-summary__inner' },
+    h('p', { class: 'sticky-summary__text' },
+      h('span', {}, `${label}: `),
+      h('strong', { class: 'num' }, formatMoney(Math.abs(result.total)))),
+    h('button', {
+      type: 'button',
+      class: 'button button--small',
+      onclick: () => {
+        document.getElementById('result-hero')?.scrollIntoView({ behavior: 'smooth' });
+      },
+    }, t('actions.toTop')));
+}
+
+function observeHero(root) {
+  heroObserver?.disconnect();
+  const hero = root.querySelector('#result-hero');
+  const sticky = root.querySelector('#sticky-summary');
+  if (!hero || !sticky || !('IntersectionObserver' in window)) return;
+  heroObserver = new IntersectionObserver(([entry]) => {
+    sticky.hidden = entry.isIntersecting;
+  }, { threshold: 0 });
+  heroObserver.observe(hero);
+}
+
+// ---------------------------------------------------------------------------
+// Adjust form – rendered once, edits update the result live
+// ---------------------------------------------------------------------------
+
+function numberField({ id = uid('n'), label, value, min, max, step = 1, onValue, placeholder, format = false, unit }) {
+  const input = h('input', {
+    id,
+    class: 'input',
+    type: format ? 'text' : 'number',
+    inputmode: step < 1 ? 'decimal' : 'numeric',
+    min,
+    max,
+    step,
+    placeholder,
+    value: value === null || value === undefined ? '' : (format ? formatInputNumber(value) : String(value)),
+    oninput: (e) => {
+      const n = parseNumber(e.target.value);
+      if (e.target.value.trim() === '' && placeholder !== undefined) {
+        onValue(null);
+        return;
+      }
+      if (!Number.isFinite(n)) return;
+      if (min !== undefined && n < min) return;
+      if (max !== undefined && n > max) return;
+      onValue(n);
+    },
+    onblur: (e) => {
+      const n = parseNumber(e.target.value);
+      if (format && Number.isFinite(n)) e.target.value = formatInputNumber(n);
+    },
+  });
+  return h('div', { class: 'field' },
+    h('label', { class: 'field__label', for: id }, label),
+    unit ? h('div', { class: 'input-wrap' }, input, h('span', { class: 'input-wrap__unit', 'aria-hidden': 'true' }, unit)) : input);
+}
+
+function selectField({ id = uid('s'), label, value, options, onValue }) {
+  return h('div', { class: 'field' },
+    h('label', { class: 'field__label', for: id }, label),
+    h('select', { id, class: 'select', onchange: (e) => onValue(e.target.value) },
+      options.map((o) => h('option', { value: o.value, selected: o.value === value }, o.label))));
+}
+
+function checkboxField({ id = uid('c'), label, checked, onValue }) {
+  return h('div', { class: 'checkbox' },
+    h('input', { type: 'checkbox', id, checked, onchange: (e) => onValue(e.target.checked) }),
+    h('label', { for: id }, label));
+}
+
+function personFields(ctx, who) {
+  const person = ctx.input[who];
+  const change = () => ctx.changed();
+  return h('fieldset', { class: 'adjust__person' },
+    h('legend', { class: `adjust__legend adjust__legend--${who}` },
+      h('span', { class: `swatch swatch--${who}`, 'aria-hidden': 'true' }), t(`adjust.${who}`)),
+    numberField({
+      id: `${who}-age`,
+      label: t('field.age'),
+      value: person.age,
+      min: 18,
+      max: 66,
+      onValue: (v) => {
+        person.age = Math.round(v);
+        if (who === 'partner') ctx.partnerAgeLinked = false;
+        if (who === 'you' && ctx.partnerAgeLinked) {
+          ctx.input.partner.age = person.age;
+          const partnerAge = document.getElementById('partner-age');
+          if (partnerAge) partnerAge.value = String(person.age);
+        }
+        change();
+      },
+    }),
+    numberField({
+      id: `${who}-salary`,
+      label: t('field.salary'),
+      value: person.salary,
+      min: 0,
+      max: 1000000,
+      format: true,
+      unit: t('unit.krMonth'),
+      onValue: (v) => { person.salary = v; change(); },
+    }),
+    selectField({
+      id: `${who}-agreement`,
+      label: t('field.agreement'),
+      value: person.agreement,
+      options: ['yes', 'no', 'unknown'].map((v) => ({ value: v, label: t(`option.${v}`) })),
+      onValue: (v) => { person.agreement = v; change(); },
+    }),
+    h('div', { class: 'field-row field-row--tight' },
+      numberField({
+        id: `${who}-pt-percent`,
+        label: t('field.partTimePercent'),
+        value: person.partTimePercent,
+        min: 0,
+        max: 100,
+        step: 5,
+        onValue: (v) => { person.partTimePercent = v; change(); },
+      }),
+      numberField({
+        id: `${who}-pt-years`,
+        label: t('field.partTimeYears'),
+        value: person.partTimeYears,
+        min: 0,
+        max: 40,
+        step: 0.5,
+        onValue: (v) => { person.partTimeYears = v; change(); },
+      })),
+    numberField({
+      id: `${who}-pt-start`,
+      label: t('field.partTimeStartAge'),
+      value: person.partTimeStartAge,
+      min: 14,
+      max: 70,
+      placeholder: '',
+      onValue: (v) => { person.partTimeStartAge = v === null ? null : Math.round(v); change(); },
+    }));
+}
+
+/** Show the automatic part-time start age as placeholder text. */
+function syncPartTimePlaceholders(root, result) {
+  const { facts, input } = result;
+  for (const who of ['you', 'partner']) {
+    const field = root.querySelector(`#${who}-pt-start`);
+    if (!field) continue;
+    const age = input[who].age - (input.currentYear - facts.partTimeStart.defaultStart);
+    field.placeholder = t('field.partTimeStartAuto', { age: formatNumber(Math.floor(age)) });
+  }
+}
+
+function childFields(ctx, child, index) {
+  const change = () => ctx.changed();
+  return h('li', { class: 'child-row' },
+    h('p', { class: 'child-row__title' }, t('adjust.child', { n: index + 1 })),
+    numberField({
+      id: `child-${index}-age`,
+      label: t('field.childAge'),
+      value: child.yourAgeAtBirth,
+      min: 14,
+      max: ctx.input.you.age + 5,
+      onValue: (v) => { child.yourAgeAtBirth = Math.round(v); change(); },
+    }),
+    numberField({
+      id: `child-${index}-you`,
+      label: t('field.monthsYou'),
+      value: child.monthsYou,
+      min: 0,
+      max: 36,
+      step: 0.5,
+      onValue: (v) => { child.monthsYou = v; change(); },
+    }),
+    numberField({
+      id: `child-${index}-partner`,
+      label: t('field.monthsPartner'),
+      value: child.monthsPartner,
+      min: 0,
+      max: 36,
+      step: 0.5,
+      onValue: (v) => { child.monthsPartner = v; change(); },
+    }),
+    h('button', {
+      type: 'button',
+      class: 'button button--ghost button--small child-row__remove',
+      'aria-label': t('adjust.removeChildLabel', { n: index + 1 }),
+      onclick: () => {
+        ctx.input.children.splice(index, 1);
+        ctx.changed({ structural: true });
+        document.getElementById('add-child')?.focus();
+      },
+    }, t('adjust.removeChild')));
+}
+
+const ASSUMPTION_GROUPS = [
+  ['assumptions.groupGeneral', [
+    { key: 'inflation', percent: true, step: 0.1, max: 20 },
+    { key: 'salaryGrowth', percent: true, step: 0.1, max: 20 },
+    { key: 'retirementAge', min: 55, max: 75 },
+    { key: 'priceBaseAmount', step: 100, max: 1000000, label: { year: DEFAULT_ASSUMPTIONS.baseYear } },
+    { key: 'incomeBaseAmount', step: 100, max: 1000000, label: { year: DEFAULT_ASSUMPTIONS.baseYear } },
+  ]],
+  ['assumptions.groupLeave', [
+    { key: 'benefitDaysShare', percent: true, step: 5, max: 100 },
+    { key: 'topUpLevel', percent: true, step: 5, max: 100 },
+    { key: 'topUpMonths', step: 1, max: 24 },
+  ]],
+  ['assumptions.groupVab', [
+    { key: 'vabDaysPerChildYear', step: 1, max: 60 },
+  ]],
+  ['assumptions.groupCareer', [
+    { key: 'wagePenalty', percent: true, step: 0.5, max: 50 },
+    { key: 'wagePenaltyYears', step: 1, max: 40 },
+    { key: 'wagePenaltyPermanent', bool: true },
+  ]],
+  ['assumptions.groupPension', [
+    { key: 'pensionReturn', percent: true, step: 0.1, max: 20 },
+    { key: 'premiumWaiver', bool: true },
+    { key: 'premiumWaiverMonths', step: 1, max: 24 },
+    { key: 'publicPension', bool: true },
+    { key: 'childYearCredit', bool: true },
+    { key: 'payoutYears', step: 1, min: 1, max: 40 },
+  ]],
+  ['assumptions.groupSavings', [
+    { key: 'savingsReturn', percent: true, step: 0.1, max: 20 },
+  ]],
+];
+
+function assumptionField(ctx, def) {
+  const A = ctx.input.assumptions;
+  const id = `a-${def.key}`;
+  const label = t(`a.${def.key}`, def.label ?? {});
+  if (def.bool) {
+    return checkboxField({ id, label, checked: Boolean(A[def.key]), onValue: (v) => { A[def.key] = v; ctx.changed(); } });
+  }
+  const factor = def.percent ? 100 : 1;
+  const value = Math.round(A[def.key] * factor * 1000) / 1000;
+  return numberField({
+    id,
+    label,
+    value,
+    min: def.min ?? 0,
+    max: def.max,
+    step: def.step ?? 1,
+    onValue: (v) => { A[def.key] = v / factor; ctx.changed(); },
+  });
+}
+
+function renderAdjust(ctx) {
+  const input = ctx.input;
+  const change = () => ctx.changed();
+
+  const children = input.children.length
+    ? h('ol', { class: 'child-list' }, input.children.map((c, i) => childFields(ctx, c, i)))
+    : h('p', { class: 'card__sub' }, t('adjust.noChildren'));
+
+  const principleOptions = ['excess', 'equal'].map((value) => {
+    const id = `principle-${value}`;
+    return h('div', { class: 'choice-card' },
+      h('input', {
+        type: 'radio',
+        name: 'principle',
+        id,
+        value,
+        checked: input.principle === value,
+        onchange: () => { input.principle = value; change(); },
+      }),
+      h('label', { for: id },
+        h('span', { class: 'choice-card__title' }, t(`principle.${value}`)),
+        h('span', { class: 'choice-card__desc' }, t(`principle.${value}Desc`))));
+  });
+
+  return h('section', { class: 'card adjust', id: 'adjust', 'aria-labelledby': 'adjust-title' },
+    h('h2', { class: 'card__title', id: 'adjust-title' }, t('adjust.title')),
+    h('p', { class: 'card__sub' }, t('adjust.sub')),
+    h('form', { class: 'adjust__form', novalidate: true, onsubmit: (e) => e.preventDefault() },
+      h('div', { class: 'adjust__people' }, personFields(ctx, 'you'), personFields(ctx, 'partner')),
+
+      h('fieldset', { class: 'adjust__section' },
+        h('legend', { class: 'adjust__heading' }, t('adjust.children')),
+        children,
+        h('button', {
+          type: 'button',
+          id: 'add-child',
+          class: 'button button--ghost button--small',
+          disabled: input.children.length >= 8,
+          onclick: () => {
+            const last = input.children[input.children.length - 1];
+            const age = last ? Math.min(last.yourAgeAtBirth + 3, input.you.age + 5) : Math.max(18, input.you.age - 4);
+            input.children.push(createChild(age));
+            ctx.changed({ structural: true });
+            document.getElementById(`child-${input.children.length - 1}-age`)?.focus();
+          },
+        }, '+ ', t('adjust.addChild'))),
+
+      h('fieldset', { class: 'adjust__section' },
+        h('legend', { class: 'adjust__heading' }, t('adjust.vab')),
+        numberField({
+          id: 'vab-share',
+          label: t('field.vabShare'),
+          value: Math.round(input.vabShareYou * 100),
+          min: 0,
+          max: 100,
+          step: 5,
+          onValue: (v) => { input.vabShareYou = v / 100; change(); },
+        })),
+
+      h('fieldset', { class: 'adjust__section' },
+        h('legend', { class: 'adjust__heading' }, t('adjust.principle')),
+        h('div', { class: 'choice-cards' }, principleOptions)),
+
+      h('details', { class: 'disclosure assumptions', id: 'assumptions' },
+        h('summary', {}, t('assumptions.title')),
+        h('p', { class: 'card__sub' }, t('assumptions.sub')),
+        h('div', { class: 'assumptions__groups' },
+          ASSUMPTION_GROUPS.map(([title, defs]) => h('fieldset', { class: 'assumptions__group' },
+            h('legend', { class: 'adjust__heading adjust__heading--small' }, t(title)),
+            defs.map((def) => assumptionField(ctx, def))))),
+        h('button', {
+          type: 'button',
+          id: 'reset-assumptions',
+          class: 'button button--ghost button--small',
+          onclick: () => {
+            input.assumptions = { ...DEFAULT_ASSUMPTIONS };
+            ctx.changed({ structural: true });
+            const details = document.getElementById('assumptions');
+            if (details) details.open = true;
+            document.getElementById('reset-assumptions')?.focus();
+          },
+        }, t('assumptions.reset')))));
+}
+
+// ---------------------------------------------------------------------------
+// Static content
+// ---------------------------------------------------------------------------
+
+function renderWays() {
+  const keys = ['monthly', 'lump', 'ppm', 'costs', 'agreement'];
+  return h('section', { class: 'ways', 'aria-labelledby': 'ways-title' },
+    h('h2', { class: 'section-title', id: 'ways-title' }, t('ways.title')),
+    h('p', { class: 'section-sub' }, t('ways.sub')),
+    h('ol', { class: 'ways__list' },
+      keys.map((key, i) => h('li', { class: 'ways__item' },
+        h('span', { class: 'ways__number', 'aria-hidden': 'true' }, String(i + 1)),
+        h('div', {},
+          h('h3', { class: 'ways__title' }, t(`ways.${key}.title`)),
+          h('p', {}, t(`ways.${key}.text`)))))));
+}
+
+function renderMethod() {
+  const sections = [
+    ['principle', ['text1', 'text2']],
+    ['leave', ['text']],
+    ['partTime', ['text']],
+    ['vab', ['text']],
+    ['career', ['text']],
+    ['pension', ['text1', 'text2']],
+    ['money', ['text']],
+    ['suggestion', ['text']],
+    ['limits', ['text']],
+    ['sources', ['text']],
+  ];
+  return h('section', { class: 'method', id: 'method', 'aria-labelledby': 'method-title' },
+    h('h2', { class: 'section-title', id: 'method-title' }, t('method.title')),
+    h('p', { class: 'section-sub' }, t('method.sub')),
+    h('div', { class: 'method__grid' },
+      sections.map(([key, parts]) => h('article', { class: 'method__item' },
+        h('h3', {}, t(`method.${key}.title`)),
+        parts.map((p) => h('p', {}, t(`method.${key}.${p}`)))))));
+}
+
+function getLastResult() {
+  return lastResult;
+}
+return { renderResults, updateResults, getLastResult };
+})();
+
+// ---- assets/js/app.js ----
+__modules["assets/js/app.js"] = (() => {
+const { createDefaultInput, createChild, DEFAULT_ASSUMPTIONS, PART_TIME_OPTIONS, VAB_SPLITS } = __modules["assets/js/calculator.js"];
+const { h, clear, formatNumber } = __modules["assets/js/dom.js"];
+const { fieldNumber, pills, slider } = __modules["assets/js/controls.js"];
+const { t, setLanguage, getLanguage } = __modules["assets/js/i18n.js"];
+const { renderResults, updateResults } = __modules["assets/js/results.js"];
+
+const STORAGE_KEY = 'lika-delat:v1';
+const CHILD_GAP_YEARS = 3;
+const DEFAULT_MONTHS = { you: 15, partner: 4 };
+
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+
+function blankInput() {
+  const input = createDefaultInput();
+  input.you.age = null;
+  input.you.salary = null;
+  input.partner.salary = null;
+  input.vabShareYou = null;
+  input.children = [createChild(null, DEFAULT_MONTHS.you, DEFAULT_MONTHS.partner)];
+  return input;
+}
+
+const state = {
+  view: 'intro',
+  step: 0,
+  input: blankInput(),
+  partnerAgeLinked: true,
+  hasSaved: false,
+};
+
+/** Fill in sensible defaults for anything the wizard has not asked yet. */
+function completeInput(input) {
+  const defaults = createDefaultInput(input.currentYear);
+  const you = { ...defaults.you, ...input.you };
+  if (!Number.isFinite(you.age)) you.age = defaults.you.age;
+  if (!Number.isFinite(you.salary)) you.salary = defaults.you.salary;
+  const partner = { ...defaults.partner, ...input.partner };
+  if (!Number.isFinite(partner.age)) partner.age = you.age;
+  if (!Number.isFinite(partner.salary)) partner.salary = defaults.partner.salary;
+  const children = input.children.map((c, i) => ({
+    ...c,
+    yourAgeAtBirth: Number.isFinite(c.yourAgeAtBirth) ? c.yourAgeAtBirth : Math.max(18, you.age - 4) + i * CHILD_GAP_YEARS,
+  }));
+  return {
+    ...input,
+    you,
+    partner,
+    children,
+    vabShareYou: Number.isFinite(input.vabShareYou) ? input.vabShareYou : VAB_SPLITS.equal,
+    assumptions: { ...DEFAULT_ASSUMPTIONS, ...input.assumptions },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Persistence: localStorage and shareable links
+// ---------------------------------------------------------------------------
+
+function compactInput(input) {
+  const assumptions = {};
+  for (const [key, value] of Object.entries(input.assumptions ?? {})) {
+    if (DEFAULT_ASSUMPTIONS[key] !== value) assumptions[key] = value;
+  }
+  return { ...input, assumptions };
+}
+
+function encodeState() {
+  const json = JSON.stringify({ l: getLanguage(), i: compactInput(state.input) });
+  const bytes = new TextEncoder().encode(json);
+  let binary = '';
+  bytes.forEach((b) => { binary += String.fromCharCode(b); });
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+function decodeState(encoded) {
+  const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/');
+  const binary = atob(base64 + '='.repeat((4 - (base64.length % 4)) % 4));
+  const bytes = Uint8Array.from(binary, (c) => c.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+
+function shareUrl() {
+  const url = new URL(window.location.href);
+  url.hash = `s=${encodeState()}`;
+  return url.toString();
+}
+
+let saveTimer = null;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        lang: getLanguage(),
+        view: state.view === 'result' ? 'result' : 'intro',
+        input: state.input,
+        partnerAgeLinked: state.partnerAgeLinked,
+      }));
+    } catch {
+      // Private mode or storage disabled – the app works without it.
+    }
+  }, 150);
+}
+
+function load() {
+  let saved = null;
+  try {
+    saved = JSON.parse(localStorage.getItem(STORAGE_KEY) ?? 'null');
+  } catch {
+    saved = null;
+  }
+  if (saved?.lang) setLanguage(saved.lang);
+
+  const match = window.location.hash.match(/^#s=([A-Za-z0-9_-]+)$/);
+  if (match) {
+    try {
+      const shared = decodeState(match[1]);
+      if (shared.l) setLanguage(shared.l);
+      state.input = completeInput({ ...createDefaultInput(), ...shared.i });
+      state.partnerAgeLinked = state.input.partner.age === state.input.you.age;
+      state.view = 'result';
+      history.replaceState(null, '', window.location.pathname + window.location.search);
+      return;
+    } catch {
+      // Ignore broken links and fall back to the saved state.
+    }
+  }
+
+  if (saved?.input && saved.view === 'result') {
+    state.input = completeInput({ ...createDefaultInput(), ...saved.input });
+    state.partnerAgeLinked = saved.partnerAgeLinked ?? true;
+    state.hasSaved = true;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Rendering
+// ---------------------------------------------------------------------------
+
+const app = document.getElementById('app');
+const helpDialog = document.getElementById('help-dialog');
+
+function render() {
+  document.documentElement.lang = getLanguage();
+  document.title = t('meta.title');
+  document.querySelector('meta[name="description"]')?.setAttribute('content', t('meta.description'));
+  renderChrome();
+  clear(app);
+  app.dataset.view = state.view;
+  if (state.view === 'intro') app.append(renderIntro());
+  else if (state.view === 'wizard') app.append(renderWizard());
+  else renderResults(app, resultContext);
+}
+
+function renderChrome() {
+  const langButton = document.getElementById('lang-toggle');
+  langButton.textContent = t('lang.switch');
+  langButton.setAttribute('aria-label', t('lang.switchLabel'));
+  langButton.setAttribute('lang', getLanguage() === 'sv' ? 'en' : 'sv');
+  document.getElementById('brand-tagline').textContent = t('header.tagline');
+  document.getElementById('footer-text').textContent = t('footer.text');
+}
+
+function go(view, step = 0) {
+  state.view = view;
+  state.step = step;
+  save();
+  render();
+  window.scrollTo({ top: 0 });
+  const focusTarget = app.querySelector('[data-autofocus]') ?? app.querySelector('h1');
+  focusTarget?.focus({ preventScroll: true });
+}
+
+// ---------------------------------------------------------------------------
+// Intro
+// ---------------------------------------------------------------------------
+
+function renderIntro() {
+  return h('section', { class: 'intro' },
+    h('div', { class: 'intro__text' },
+      h('p', { class: 'eyebrow' }, t('intro.eyebrow')),
+      h('h1', { tabindex: '-1' }, t('intro.title')),
+      h('p', { class: 'lead' }, t('intro.lead')),
+      h('ul', { class: 'intro__points' },
+        ['intro.point1', 'intro.point2', 'intro.point3'].map((key) => h('li', {}, t(key)))),
+      h('div', { class: 'intro__actions' },
+        h('button', { class: 'button button--primary', type: 'button', 'data-autofocus': true, onclick: () => go('wizard', 0) }, t('intro.start')),
+        state.hasSaved
+          ? h('button', { class: 'button button--ghost', type: 'button', onclick: () => go('result') }, t('intro.resume'))
+          : h('button', {
+            class: 'button button--ghost',
+            type: 'button',
+            onclick: () => {
+              state.input = completeInput(state.input);
+              go('result');
+            },
+          }, t('intro.detailed'), ' →')),
+      h('p', { class: 'intro__privacy' }, t('intro.privacy'))),
+    h('div', { class: 'intro__art', 'aria-hidden': 'true' }, introArt()));
+}
+
+function introArt() {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 320 260');
+  svg.innerHTML = `
+    <circle cx="125" cy="130" r="92" class="art-you"></circle>
+    <circle cx="195" cy="130" r="92" class="art-partner"></circle>
+    <path d="M160 52 a92 92 0 0 1 0 156 a92 92 0 0 1 0 -156z" class="art-overlap"></path>
+    <text x="160" y="140" text-anchor="middle" class="art-text">50/50</text>`;
+  return svg;
+}
+
+// ---------------------------------------------------------------------------
+// Wizard
+// ---------------------------------------------------------------------------
+
+const monthsLabel = (v) => `${formatNumber(v)} ${t('unit.months')}`;
+const yearsLabel = (v) => `${formatNumber(v, Number.isInteger(v) ? 0 : 1)} ${t('unit.years')}`;
+
+function syncChildren(count, firstAge) {
+  const children = state.input.children.slice(0, count);
+  while (children.length < count) children.push(createChild(null, DEFAULT_MONTHS.you, DEFAULT_MONTHS.partner));
+  state.input.children = children.map((c, i) => ({
+    ...c,
+    yourAgeAtBirth: Number.isFinite(firstAge) ? firstAge + i * CHILD_GAP_YEARS : c.yourAgeAtBirth,
+  }));
+}
+
+const isValidAge = (v) => Number.isFinite(v) && v >= 18 && v <= 66;
+const isValidSalary = (v) => Number.isFinite(v) && v >= 5000 && v <= 1000000;
+
+const steps = [
+  {
+    id: 'age',
+    help: { title: 'q.age.helpTitle', paragraphs: ['q.age.help1', 'q.age.help2'] },
+    validate: () => (isValidAge(state.input.you.age) ? null : { age: t('q.age.error') }),
+    render: (errors) => [
+      h('h1', { class: 'question__title', tabindex: '-1' }, t('q.age.title')),
+      fieldNumber({
+        label: t('q.age.label'),
+        value: state.input.you.age,
+        unit: t('unit.years'),
+        autofocus: true,
+        error: errors.age,
+        onInput: (v) => {
+          state.input.you.age = Number.isFinite(v) ? Math.round(v) : null;
+          if (state.partnerAgeLinked) state.input.partner.age = state.input.you.age;
+        },
+      }),
+    ],
+  },
+  {
+    id: 'salary',
+    help: { title: 'q.salary.helpTitle', paragraphs: ['q.salary.help1', 'q.salary.help2'], fact: 'q.salary.fact' },
+    validate: () => {
+      const errors = {};
+      if (!isValidSalary(state.input.you.salary)) errors.you = t('q.salary.error');
+      if (!isValidSalary(state.input.partner.salary)) errors.partner = t('q.salary.error');
+      return Object.keys(errors).length ? errors : null;
+    },
+    render: (errors) => [
+      h('h1', { class: 'question__title', tabindex: '-1' }, t('q.salary.title')),
+      h('div', { class: 'field-row' },
+        fieldNumber({
+          label: t('q.salary.you'),
+          value: state.input.you.salary,
+          unit: t('unit.krMonth'),
+          hint: t('q.salary.hint'),
+          autofocus: true,
+          format: true,
+          error: errors.you,
+          onInput: (v) => { state.input.you.salary = Number.isFinite(v) ? v : null; },
+        }),
+        fieldNumber({
+          label: t('q.salary.partner'),
+          value: state.input.partner.salary,
+          unit: t('unit.krMonth'),
+          hint: t('q.salary.hint'),
+          format: true,
+          error: errors.partner,
+          onInput: (v) => { state.input.partner.salary = Number.isFinite(v) ? v : null; },
+        })),
+    ],
+  },
+  {
+    id: 'agreement',
+    help: { title: 'q.agreement.helpTitle', paragraphs: ['q.agreement.help1', 'q.agreement.help2', 'q.agreement.help3'] },
+    render: () => {
+      const options = ['yes', 'no', 'unknown'].map((v) => ({ value: v, label: t(`option.${v}`) }));
+      return [
+        h('h1', { class: 'question__title', tabindex: '-1' }, t('q.agreement.title')),
+        h('p', { class: 'question__sub' }, t('q.agreement.sub')),
+        h('div', { class: 'stack' },
+          pills({ legend: t('q.agreement.you'), options, value: state.input.you.agreement, onChange: (v) => { state.input.you.agreement = v; } }),
+          pills({ legend: t('q.agreement.partner'), options, value: state.input.partner.agreement, onChange: (v) => { state.input.partner.agreement = v; } })),
+      ];
+    },
+  },
+  {
+    id: 'vab',
+    help: { title: 'q.vab.helpTitle', paragraphs: ['q.vab.help1', 'q.vab.help2'] },
+    validate: () => (Number.isFinite(state.input.vabShareYou) ? null : { vab: t('wizard.chooseOption') }),
+    render: (errors) => {
+      const choice = Object.entries(VAB_SPLITS).find(([, share]) => share === state.input.vabShareYou)?.[0] ?? null;
+      return [
+        h('h1', { class: 'question__title', tabindex: '-1' }, t('q.vab.title')),
+        pills({
+          legend: t('q.vab.title'),
+          hideLegend: true,
+          options: ['you', 'partner', 'equal'].map((v) => ({ value: v, label: t(`option.vab.${v}`) })),
+          value: choice,
+          error: errors.vab,
+          onChange: (v) => { state.input.vabShareYou = VAB_SPLITS[v]; },
+        }),
+      ];
+    },
+  },
+  {
+    id: 'partTime',
+    help: { title: 'q.partTime.helpTitle', paragraphs: ['q.partTime.help1', 'q.partTime.help2'], fact: 'q.partTime.fact' },
+    render: () => {
+      const options = PART_TIME_OPTIONS.map((p) => ({ value: p, label: p === 100 ? t('q.partTime.full') : `${p} %` }));
+      const block = (who) => {
+        const person = state.input[who];
+        const yearsSlot = h('div', { class: 'part-time__years' });
+        const renderYears = () => {
+          clear(yearsSlot);
+          if (person.partTimePercent < 100) {
+            if (!(person.partTimeYears > 0)) person.partTimeYears = 1;
+            yearsSlot.append(slider({
+              label: t('q.partTime.howLong'),
+              value: person.partTimeYears,
+              min: 0.5,
+              max: 20,
+              step: 0.5,
+              format: yearsLabel,
+              onInput: (v) => { person.partTimeYears = v; },
+            }));
+          } else {
+            person.partTimeYears = 0;
+          }
+        };
+        renderYears();
+        return h('div', { class: 'part-time' },
+          pills({
+            legend: t(`q.partTime.${who}`),
+            options,
+            value: person.partTimePercent,
+            onChange: (v) => {
+              person.partTimePercent = v;
+              renderYears();
+            },
+          }),
+          yearsSlot);
+      };
+      return [
+        h('h1', { class: 'question__title', tabindex: '-1' }, t('q.partTime.title')),
+        h('p', { class: 'question__sub' }, t('q.partTime.sub')),
+        h('div', { class: 'stack' }, block('you'), block('partner')),
+      ];
+    },
+  },
+  {
+    id: 'children',
+    help: { title: 'q.children.helpTitle', paragraphs: ['q.children.help1', 'q.children.help2'] },
+    validate: () => {
+      const first = state.input.children[0]?.yourAgeAtBirth;
+      const age = state.input.you.age;
+      return Number.isFinite(first) && first >= 14 && first <= age + 5 ? null : { firstAge: t('q.children.firstAgeError') };
+    },
+    render: (errors) => {
+      const count = state.input.children.length;
+      const countOutput = h('output', { class: 'stepper__value', 'aria-live': 'polite' }, String(count));
+      const setCount = (n) => {
+        syncChildren(Math.min(8, Math.max(1, n)), state.input.children[0]?.yourAgeAtBirth);
+        countOutput.textContent = String(state.input.children.length);
+        decrease.disabled = state.input.children.length <= 1;
+        increase.disabled = state.input.children.length >= 8;
+      };
+      const decrease = h('button', { type: 'button', class: 'stepper__button', 'aria-label': t('q.children.decrease'), disabled: count <= 1, onclick: () => setCount(state.input.children.length - 1) }, '−');
+      const increase = h('button', { type: 'button', class: 'stepper__button', 'aria-label': t('q.children.increase'), disabled: count >= 8, onclick: () => setCount(state.input.children.length + 1) }, '+');
+      const firstAge = state.input.children[0]?.yourAgeAtBirth;
+      return [
+        h('h1', { class: 'question__title', tabindex: '-1' }, t('q.children.title')),
+        h('p', { class: 'question__sub' }, t('q.children.sub')),
+        h('div', { class: 'stepper', role: 'group', 'aria-label': t('q.children.count') }, decrease, countOutput, increase),
+        fieldNumber({
+          label: t('q.children.firstAge'),
+          value: Number.isFinite(firstAge) ? firstAge : null,
+          unit: t('unit.years'),
+          hint: t('q.children.gapHint'),
+          error: errors.firstAge,
+          onInput: (v) => syncChildren(state.input.children.length, Number.isFinite(v) ? Math.round(v) : null),
+        }),
+      ];
+    },
+  },
+  {
+    id: 'leave',
+    help: { title: 'q.leave.helpTitle', paragraphs: ['q.leave.help1', 'q.leave.help2', 'q.leave.help3'] },
+    render: () => [
+      h('h1', { class: 'question__title', tabindex: '-1' }, t('q.leave.title')),
+      h('p', { class: 'question__sub' }, t('q.leave.sub')),
+      h('div', { class: 'stack' },
+        state.input.children.map((child, i) => h('fieldset', { class: 'child-leave' },
+          h('legend', { class: state.input.children.length > 1 ? 'child-leave__legend' : 'visually-hidden' }, t('q.leave.child', { n: i + 1 })),
+          slider({ label: t('q.leave.you'), value: child.monthsYou, min: 0, max: 24, format: monthsLabel, onInput: (v) => { child.monthsYou = v; } }),
+          slider({ label: t('q.leave.partner'), value: child.monthsPartner, min: 0, max: 24, format: monthsLabel, onInput: (v) => { child.monthsPartner = v; } })))),
+      h('p', { class: 'field__hint' }, t('q.leave.prefilled')),
+    ],
+  },
+];
+
+function renderWizard() {
+  const step = steps[state.step];
+  let errors = {};
+  const body = h('div', { class: 'question__body' });
+  const total = steps.length;
+  const isLast = state.step === total - 1;
+
+  const drawBody = () => {
+    clear(body);
+    append(body, step.render(errors));
+  };
+
+  const next = () => {
+    const result = step.validate?.() ?? null;
+    if (result) {
+      errors = result;
+      drawBody();
+      body.querySelector('[aria-invalid="true"], .field__error')?.closest('.field, .pills')?.querySelector('input')?.focus();
+      return;
+    }
+    if (isLast) {
+      state.input = completeInput(state.input);
+      go('result');
+    } else {
+      go('wizard', state.step + 1);
+    }
+  };
+
+  const form = h('form', {
+    class: 'question',
+    novalidate: true,
+    onsubmit: (e) => {
+      e.preventDefault();
+      next();
+    },
+  },
+  h('div', { class: 'question__top' },
+    h('p', { class: 'question__progress' }, t('wizard.progress', { current: state.step + 1, total })),
+    h('button', {
+      type: 'button',
+      class: 'icon-button',
+      'aria-label': `${t('wizard.help')}: ${t(step.help.title)}`,
+      'aria-haspopup': 'dialog',
+      onclick: () => openHelp(step.help),
+    }, '?')),
+  h('div', { class: 'progress', role: 'presentation' },
+    steps.map((s, i) => h('span', { class: `progress__dot${i < state.step ? ' is-done' : ''}${i === state.step ? ' is-current' : ''}` }))),
+  body,
+  h('div', { class: 'question__nav' },
+    state.step > 0
+      ? h('button', { type: 'button', class: 'button button--ghost', onclick: () => go('wizard', state.step - 1) }, '← ', t('wizard.back'))
+      : h('button', { type: 'button', class: 'button button--ghost', onclick: () => go('intro') }, '← ', t('wizard.back')),
+    h('button', { type: 'submit', class: 'button button--primary' }, isLast ? t('wizard.finish') : t('wizard.next'))));
+
+  drawBody();
+  return h('section', { class: 'wizard' }, form);
+}
+
+function append(el, children) {
+  for (const child of [children].flat(Infinity)) {
+    if (child) el.append(child);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Help dialog
+// ---------------------------------------------------------------------------
+
+function openHelp({ title, paragraphs, fact }) {
+  const content = helpDialog.querySelector('.dialog__content');
+  clear(content);
+  content.append(
+    h('h2', { class: 'dialog__title', id: 'help-title' }, t(title)),
+    ...paragraphs.map((key) => h('p', {}, t(key))),
+  );
+  if (fact) {
+    content.append(h('div', { class: 'fact' }, h('p', { class: 'fact__title' }, t('wizard.factTitle')), h('p', {}, t(fact))));
+  }
+  helpDialog.querySelector('.dialog__close').setAttribute('aria-label', t('wizard.close'));
+  if (typeof helpDialog.showModal === 'function') helpDialog.showModal();
+  else helpDialog.setAttribute('open', '');
+}
+
+helpDialog.addEventListener('click', (e) => {
+  if (e.target === helpDialog || e.target.closest('.dialog__close')) helpDialog.close();
+});
+
+// ---------------------------------------------------------------------------
+// Results context – shared with results.js
+// ---------------------------------------------------------------------------
+
+const resultContext = {
+  get input() { return state.input; },
+  get partnerAgeLinked() { return state.partnerAgeLinked; },
+  set partnerAgeLinked(value) { state.partnerAgeLinked = value; },
+  /** Called by the detailed form after every change. */
+  changed({ structural = false } = {}) {
+    save();
+    if (structural) render();
+    else updateResults(app, resultContext);
+  },
+  restart() {
+    if (!window.confirm(t('actions.restartConfirm'))) return;
+    state.input = blankInput();
+    state.partnerAgeLinked = true;
+    state.hasSaved = false;
+    try { localStorage.removeItem(STORAGE_KEY); } catch { /* ignore */ }
+    go('intro');
+  },
+  shareUrl,
+};
+
+// ---------------------------------------------------------------------------
+// Boot
+// ---------------------------------------------------------------------------
+
+// The brand is the way back to the start page; a plain link would leave a
+// standalone file opened from disk.
+document.querySelector('.brand').addEventListener('click', (e) => {
+  e.preventDefault();
+  if (state.view !== 'intro') {
+    state.hasSaved = state.view === 'result';
+    go('intro');
+  }
+});
+
+document.getElementById('lang-toggle').addEventListener('click', () => {
+  setLanguage(getLanguage() === 'sv' ? 'en' : 'sv');
+  save();
+  const scroll = window.scrollY;
+  render();
+  window.scrollTo({ top: scroll });
+});
+
+load();
+render();
+return { completeInput, shareUrl };
+})();
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#app">Hoppa till innehållet</a>
+
+  <header class="site-header">
+    <div class="container site-header__inner">
+      <a class="brand" href="#app">
+        <svg class="brand__logo" viewBox="0 0 40 28" aria-hidden="true">
+          <circle cx="14" cy="14" r="12" class="logo-you"></circle>
+          <circle cx="26" cy="14" r="12" class="logo-partner"></circle>
+        </svg>
+        <span class="brand__name">Lika delat</span>
+        <span class="brand__tagline" id="brand-tagline">Kalkylator för jämlik livsinkomst</span>
+      </a>
+      <button type="button" class="lang-toggle" id="lang-toggle">English</button>
+    </div>
+  </header>
+
+  <main id="app" class="container" tabindex="-1">
+    <noscript>
+      <p>Kalkylatorn behöver JavaScript. / The calculator needs JavaScript.</p>
+    </noscript>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">
+      <p id="footer-text">Lika delat är en fristående kalkylator. Resultatet är en uppskattning och inte finansiell rådgivning.</p>
+    </div>
+  </footer>
+
+  <dialog class="dialog" id="help-dialog" aria-labelledby="help-title">
+    <div class="dialog__panel">
+      <button type="button" class="icon-button dialog__close" aria-label="Stäng">×</button>
+      <div class="dialog__content"></div>
+    </div>
+  </dialog>
+</body>
+</html>
