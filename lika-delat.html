@@ -2835,7 +2835,9 @@ const sv = {
   'form.incomplete': 'Fyll i alla uppgifter så visas resultatet här.',
   'form.errors': 'Några uppgifter saknas eller behöver rättas – se markeringarna ovan.',
   'form.orMonthly': 'eller {amount} i månaden i {years}',
-  'form.more': 'Partnerns ålder, ålder vid varje barn, exakt vab-fördelning och alla antaganden kan du ändra på resultatsidan under Justera beräkningen.',
+  'form.advanced.title': 'Fler inställningar',
+  'form.advanced.sub': 'Partnerns ålder, exakt ålder vid varje barn, exakt vab-fördelning och alla antaganden för beräkningen.',
+  'form.more': 'Allt kan ändras igen på resultatsidan under Justera beräkningen.',
 
   'wizard.progress': 'Fråga {current} av {total}',
   'wizard.back': 'Tillbaka',
@@ -3069,9 +3071,12 @@ const sv = {
   'field.partTimeStartAge': 'Ålder när deltiden började',
   'field.partTimeStartAuto': 'Automatiskt ({age} år)',
   'field.childAge': 'Din ålder när barnet föddes',
+  'field.childAgeAt': 'Barn {n}: din ålder när barnet föddes',
   'field.monthsYou': 'Dina månader hemma',
   'field.monthsPartner': 'Partnerns månader hemma',
   'field.vabShare': 'Din andel av vab-dagarna, %',
+  'field.partnerAge': 'Partnerns ålder',
+  'field.partnerAgeHint': 'Antar samma ålder som du, om inte annat anges här.',
 
   'assumptions.title': 'Antaganden',
   'assumptions.sub': 'Standardvärdena följer vanliga antaganden för den här typen av beräkning. Ändra dem om du vet att något annat gäller för er.',
@@ -3181,7 +3186,9 @@ const en = {
   'form.incomplete': 'Fill in all the details and the result is shown here.',
   'form.errors': 'Some details are missing or need correcting – see the marks above.',
   'form.orMonthly': 'or {amount} a month for {years}',
-  'form.more': 'Your partner’s age, your age at each child, an exact vab split and all assumptions can be changed on the result page under Adjust the calculation.',
+  'form.advanced.title': 'More settings',
+  'form.advanced.sub': 'Partner’s age, your exact age at each child, an exact vab split and all assumptions for the calculation.',
+  'form.more': 'Everything can be changed again on the result page under Adjust the calculation.',
 
   'wizard.progress': 'Question {current} of {total}',
   'wizard.back': 'Back',
@@ -3415,9 +3422,12 @@ const en = {
   'field.partTimeStartAge': 'Age when part time started',
   'field.partTimeStartAuto': 'Automatic ({age} years)',
   'field.childAge': 'Your age when the child was born',
+  'field.childAgeAt': 'Child {n}: your age when the child was born',
   'field.monthsYou': 'Your months at home',
   'field.monthsPartner': 'Partner’s months at home',
   'field.vabShare': 'Your share of the vab days, %',
+  'field.partnerAge': 'Partner’s age',
+  'field.partnerAgeHint': 'Assumed to be the same as your age, unless changed here.',
 
   'assumptions.title': 'Assumptions',
   'assumptions.sub': 'The default values follow common assumptions for this kind of calculation. Change them if you know that something else applies to you.',
@@ -4571,7 +4581,7 @@ function renderMethod() {
 function getLastResult() {
   return lastResult;
 }
-return { renderResults, updateResults, getLastResult };
+return { renderResults, updateResults, numberField, ASSUMPTION_GROUPS, assumptionField, getLastResult };
 })();
 
 // ---- assets/js/app.js ----
@@ -4580,7 +4590,7 @@ const { calculate, createDefaultInput, createChild, DEFAULT_ASSUMPTIONS, PART_TI
 const { h, clear, formatNumber, formatMoney } = __modules["assets/js/dom.js"];
 const { fieldNumber, pills, slider } = __modules["assets/js/controls.js"];
 const { t, setLanguage, getLanguage } = __modules["assets/js/i18n.js"];
-const { renderResults, updateResults } = __modules["assets/js/results.js"];
+const { renderResults, updateResults, numberField, assumptionField, ASSUMPTION_GROUPS } = __modules["assets/js/results.js"];
 
 const STORAGE_KEY = 'lika-delat:v1';
 const CHILD_GAP_YEARS = 3;
@@ -5147,6 +5157,14 @@ function renderForm() {
 
   onAnswer = (id, { structural = false } = {}) => {
     if (structural) drawSection(stepById('leave'));
+    // The children question (count or age at first child) changes the ages
+    // the advanced panel shows per child.
+    if (structural || id === 'children') drawAdvanced();
+    // Keep the advanced partner-age field in step while it mirrors your age.
+    if (id === 'age' && state.partnerAgeLinked) {
+      const partnerAge = document.getElementById('form-partner-age');
+      if (partnerAge) partnerAge.value = String(state.input.partner.age ?? '');
+    }
     // Take away an error as soon as the question is answered correctly.
     if (errors[id] && !stepById(id).validate?.()) {
       delete errors[id];
@@ -5155,6 +5173,74 @@ function renderForm() {
       body.querySelectorAll('[aria-invalid]').forEach((el) => el.removeAttribute('aria-invalid'));
     }
     updateSummary();
+  };
+
+  // A minimal stand-in for the result page's context, so the same field
+  // builders (assumptionField) can be reused here.
+  const advancedCtx = {
+    get input() { return state.input; },
+    changed() { updateSummary(); },
+  };
+
+  const advancedBody = h('div', { class: 'advanced__body' });
+  const drawAdvanced = () => {
+    clear(advancedBody);
+    append(advancedBody, [
+      numberField({
+        id: 'form-partner-age',
+        label: t('field.partnerAge'),
+        value: state.input.partner.age,
+        min: 18,
+        max: 66,
+        unit: t('unit.years'),
+        onValue: (v) => {
+          state.input.partner.age = Math.round(v);
+          state.partnerAgeLinked = false;
+          updateSummary();
+        },
+      }),
+      h('p', { class: 'field__hint' }, t('field.partnerAgeHint')),
+      numberField({
+        id: 'form-vab-share',
+        label: t('field.vabShare'),
+        value: Number.isFinite(state.input.vabShareYou) ? Math.round(state.input.vabShareYou * 100) : null,
+        min: 0,
+        max: 100,
+        step: 5,
+        onValue: (v) => {
+          state.input.vabShareYou = v / 100;
+          drawSection(stepById('vab'));
+          updateSummary();
+        },
+      }),
+      state.input.children.length
+        ? h('div', { class: 'field-row' }, state.input.children.map((child, i) => numberField({
+          id: `form-child-${i}-age`,
+          label: t('field.childAgeAt', { n: i + 1 }),
+          value: child.yourAgeAtBirth,
+          min: 14,
+          max: (state.input.you.age ?? 66) + 5,
+          unit: t('unit.years'),
+          onValue: (v) => {
+            child.yourAgeAtBirth = Math.round(v);
+            updateSummary();
+          },
+        })))
+        : null,
+      h('div', { class: 'assumptions__groups' },
+        ASSUMPTION_GROUPS.map(([title, defs]) => h('fieldset', { class: 'assumptions__group' },
+          h('legend', { class: 'adjust__heading adjust__heading--small' }, t(title)),
+          defs.map((def) => assumptionField(advancedCtx, def))))),
+      h('button', {
+        type: 'button',
+        class: 'button button--ghost button--small',
+        onclick: () => {
+          state.input.assumptions = { ...DEFAULT_ASSUMPTIONS };
+          drawAdvanced();
+          updateSummary();
+        },
+      }, t('assumptions.reset')),
+    ]);
   };
 
   const submit = () => {
@@ -5206,12 +5292,18 @@ function renderForm() {
     h('p', { class: 'lead' }, t('form.lead')),
     h('button', { type: 'button', class: 'link-button', id: 'to-wizard', onclick: () => go('wizard', 0) }, t('form.toWizard'))),
   h('div', { class: 'card form-card' }, sections),
+  h('section', { class: 'card' },
+    h('details', { class: 'disclosure assumptions', id: 'form-advanced' },
+      h('summary', {}, t('form.advanced.title')),
+      h('p', { class: 'card__sub' }, t('form.advanced.sub')),
+      advancedBody)),
   h('p', { class: 'form-page__more' }, t('form.more')),
   h('div', { class: 'form-summary' },
     summary,
     h('button', { type: 'submit', class: 'button form-summary__button' }, t('wizard.finish'))));
 
   steps.forEach(drawSection);
+  drawAdvanced();
   // Start at the heading rather than inside the first field.
   form.querySelectorAll('[data-autofocus]').forEach((el) => el.removeAttribute('data-autofocus'));
   updateSummary();

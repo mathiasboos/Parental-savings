@@ -2,7 +2,9 @@ import { calculate, createDefaultInput, createChild, DEFAULT_ASSUMPTIONS, PART_T
 import { h, clear, formatNumber, formatMoney } from './dom.js';
 import { fieldNumber, pills, slider } from './controls.js';
 import { t, setLanguage, getLanguage } from './i18n.js';
-import { renderResults, updateResults } from './results.js';
+import {
+  renderResults, updateResults, numberField, assumptionField, ASSUMPTION_GROUPS,
+} from './results.js';
 
 const STORAGE_KEY = 'lika-delat:v1';
 const CHILD_GAP_YEARS = 3;
@@ -569,6 +571,14 @@ function renderForm() {
 
   onAnswer = (id, { structural = false } = {}) => {
     if (structural) drawSection(stepById('leave'));
+    // The children question (count or age at first child) changes the ages
+    // the advanced panel shows per child.
+    if (structural || id === 'children') drawAdvanced();
+    // Keep the advanced partner-age field in step while it mirrors your age.
+    if (id === 'age' && state.partnerAgeLinked) {
+      const partnerAge = document.getElementById('form-partner-age');
+      if (partnerAge) partnerAge.value = String(state.input.partner.age ?? '');
+    }
     // Take away an error as soon as the question is answered correctly.
     if (errors[id] && !stepById(id).validate?.()) {
       delete errors[id];
@@ -577,6 +587,74 @@ function renderForm() {
       body.querySelectorAll('[aria-invalid]').forEach((el) => el.removeAttribute('aria-invalid'));
     }
     updateSummary();
+  };
+
+  // A minimal stand-in for the result page's context, so the same field
+  // builders (assumptionField) can be reused here.
+  const advancedCtx = {
+    get input() { return state.input; },
+    changed() { updateSummary(); },
+  };
+
+  const advancedBody = h('div', { class: 'advanced__body' });
+  const drawAdvanced = () => {
+    clear(advancedBody);
+    append(advancedBody, [
+      numberField({
+        id: 'form-partner-age',
+        label: t('field.partnerAge'),
+        value: state.input.partner.age,
+        min: 18,
+        max: 66,
+        unit: t('unit.years'),
+        onValue: (v) => {
+          state.input.partner.age = Math.round(v);
+          state.partnerAgeLinked = false;
+          updateSummary();
+        },
+      }),
+      h('p', { class: 'field__hint' }, t('field.partnerAgeHint')),
+      numberField({
+        id: 'form-vab-share',
+        label: t('field.vabShare'),
+        value: Number.isFinite(state.input.vabShareYou) ? Math.round(state.input.vabShareYou * 100) : null,
+        min: 0,
+        max: 100,
+        step: 5,
+        onValue: (v) => {
+          state.input.vabShareYou = v / 100;
+          drawSection(stepById('vab'));
+          updateSummary();
+        },
+      }),
+      state.input.children.length
+        ? h('div', { class: 'field-row' }, state.input.children.map((child, i) => numberField({
+          id: `form-child-${i}-age`,
+          label: t('field.childAgeAt', { n: i + 1 }),
+          value: child.yourAgeAtBirth,
+          min: 14,
+          max: (state.input.you.age ?? 66) + 5,
+          unit: t('unit.years'),
+          onValue: (v) => {
+            child.yourAgeAtBirth = Math.round(v);
+            updateSummary();
+          },
+        })))
+        : null,
+      h('div', { class: 'assumptions__groups' },
+        ASSUMPTION_GROUPS.map(([title, defs]) => h('fieldset', { class: 'assumptions__group' },
+          h('legend', { class: 'adjust__heading adjust__heading--small' }, t(title)),
+          defs.map((def) => assumptionField(advancedCtx, def))))),
+      h('button', {
+        type: 'button',
+        class: 'button button--ghost button--small',
+        onclick: () => {
+          state.input.assumptions = { ...DEFAULT_ASSUMPTIONS };
+          drawAdvanced();
+          updateSummary();
+        },
+      }, t('assumptions.reset')),
+    ]);
   };
 
   const submit = () => {
@@ -628,12 +706,18 @@ function renderForm() {
     h('p', { class: 'lead' }, t('form.lead')),
     h('button', { type: 'button', class: 'link-button', id: 'to-wizard', onclick: () => go('wizard', 0) }, t('form.toWizard'))),
   h('div', { class: 'card form-card' }, sections),
+  h('section', { class: 'card' },
+    h('details', { class: 'disclosure assumptions', id: 'form-advanced' },
+      h('summary', {}, t('form.advanced.title')),
+      h('p', { class: 'card__sub' }, t('form.advanced.sub')),
+      advancedBody)),
   h('p', { class: 'form-page__more' }, t('form.more')),
   h('div', { class: 'form-summary' },
     summary,
     h('button', { type: 'submit', class: 'button form-summary__button' }, t('wizard.finish'))));
 
   steps.forEach(drawSection);
+  drawAdvanced();
   // Start at the heading rather than inside the first field.
   form.querySelectorAll('[data-autofocus]').forEach((el) => el.removeAttribute('data-autofocus'));
   updateSummary();

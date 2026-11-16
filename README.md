@@ -70,7 +70,10 @@ test/                       unit tests (node:test)
 There are two ways to answer, with the same questions and the same result:
 **the guide** asks one question at a time with explanations, and **the single
 page** (*Fyll i allt på en sida*) shows all questions at once with a live result
-at the bottom. You can switch between them without losing your answers.
+at the bottom. You can switch between them without losing your answers. The
+single page also has a *Fler inställningar* panel with the partner's exact age,
+each child's exact age, an exact vab split and every assumption – the same
+settings available in *Justera beräkningen* on the result page.
 
 Age · both parents' monthly salary before the first parental leave · collective
 agreement / parental pay (Ja / Nej / Vet ej, per parent) · who takes most vab ·

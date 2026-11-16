@@ -517,7 +517,7 @@ function observeHero(root) {
 // Adjust form – rendered once, edits update the result live
 // ---------------------------------------------------------------------------
 
-function numberField({ id = uid('n'), label, value, min, max, step = 1, onValue, placeholder, format = false, unit }) {
+export function numberField({ id = uid('n'), label, value, min, max, step = 1, onValue, placeholder, format = false, unit }) {
   const input = h('input', {
     id,
     class: 'input',
@@ -685,7 +685,7 @@ function childFields(ctx, child, index) {
     }, t('adjust.removeChild')));
 }
 
-const ASSUMPTION_GROUPS = [
+export const ASSUMPTION_GROUPS = [
   ['assumptions.groupGeneral', [
     { key: 'inflation', percent: true, step: 0.1, max: 20 },
     { key: 'salaryGrowth', percent: true, step: 0.1, max: 20 },
@@ -719,7 +719,7 @@ const ASSUMPTION_GROUPS = [
   ]],
 ];
 
-function assumptionField(ctx, def) {
+export function assumptionField(ctx, def) {
   const A = ctx.input.assumptions;
   const id = `a-${def.key}`;
   const label = t(`a.${def.key}`, def.label ?? {});
