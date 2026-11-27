@@ -5,8 +5,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test",
-    "start": "python3 -m http.server 8080"
+    "start": "python3 -m http.server 8080",
+    "build": "node scripts/build-standalone.mjs",
+    "test": "node --test"
   },
   "engines": {
     "node": ">=18"

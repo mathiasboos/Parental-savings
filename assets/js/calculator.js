@@ -10,20 +10,26 @@
  *   2. Deltid           – salary lost while working part time
  *   3. Vab              – salary deductions not covered by tillfällig föräldrapenning
  *   4. Löneutveckling   – lower salary growth for the parent who is home more
- *   5. Pension          – lost occupational pension premiums (ITP1-like) grown
- *                         to retirement, optionally also the public pension
+ *   5. Pension          – lost occupational pension premiums (ITP1-like),
+ *                         optionally also the public pension
  *
  * Compensation principle (default, "excess"): the parent who has been home more
  * than half of the time is compensated for the time beyond 50 %, valued at that
  * parent's own loss. Alternative ("equal"): both parents' losses are computed
  * and the difference is split equally.
  *
- * The model runs in nominal SEK: salaries follow `salaryGrowth` from the year
- * the entered salary refers to (just before the first parental leave, or today
- * for planned children) and lost pension premiums grow with `pensionReturn`
- * until the retirement age. Every amount is then expressed in today's money
- * (deflated with `inflation`) so that losses from different years – and
- * pension capital far in the future – can be added up and compared.
+ * Everything is valued TODAY, so that the parts can be added up into one
+ * amount that can be paid now:
+ *
+ *   - Salary: nominal SEK (salaries follow `salaryGrowth` from the year the
+ *     entered salary refers to) converted to today's money with `inflation`.
+ *   - Pension: every lost premium is valued at what it would be worth in the
+ *     pension account today – grown with `pensionReturn` if it was lost in the
+ *     past, discounted if it will be lost in the future. Inkomstpension rights
+ *     follow the income index (`salaryGrowth`) instead.
+ *
+ * The sum is the lump sum that evens things out today. `savingsPlan` turns it
+ * into an equivalent fixed monthly amount.
  */
 
 export const DEFAULT_ASSUMPTIONS = Object.freeze({
@@ -91,8 +97,10 @@ export const DEFAULT_ASSUMPTIONS = Object.freeze({
 
   // Allmän pension (optional add-on)
   publicPension: false,
-  /** Inkomstpension 16 % + premiepension 2.5 %. */
-  publicPensionRate: 0.185,
+  /** Inkomstpension: 16 % of the pensionable income, follows the income index. */
+  incomePensionRate: 0.16,
+  /** Premiepension: 2.5 % of the pensionable income, invested in funds. */
+  premiumPensionRate: 0.025,
   /** Pensionsgrundande inkomst ceiling in income base amounts. */
   publicPensionCapIBB: 7.5,
   /** Allmän pensionsavgift deducted before pensionsgrundande inkomst. */
@@ -101,7 +109,7 @@ export const DEFAULT_ASSUMPTIONS = Object.freeze({
   childYearCredit: true,
   childYearCreditYears: 4,
 
-  // Illustration of how the difference can be evened out
+  // Suggestion: return used to turn the lump sum into a monthly amount
   savingsReturn: 0.065,
 });
 
@@ -124,7 +132,7 @@ export const INCOME_BASE_AMOUNTS = Object.freeze({
 /** Your share of the vab days for the three quick answers. */
 export const VAB_SPLITS = Object.freeze({ you: 0.7, equal: 0.5, partner: 0.3 });
 
-export const PART_TIME_OPTIONS = Object.freeze([100, 90, 80, 75, 50]);
+export const PART_TIME_OPTIONS = Object.freeze([100, 90, 80, 75, 50, 25]);
 
 export const COMPONENT_KEYS = Object.freeze([
   'leave',
@@ -144,6 +152,9 @@ export const LIMITS = Object.freeze({
   children: [0, 8],
 });
 
+/** Default number of years for the monthly saving suggestion. */
+export const DEFAULT_SAVINGS_YEARS = 10;
+
 const DAYS_PER_MONTH = 365 / 12;
 const EPSILON = 0.5;
 
@@ -155,7 +166,8 @@ export function createDefaultInput(currentYear = new Date().getFullYear()) {
     partner: createPerson(),
     children: [createChild(31)],
     vabShareYou: VAB_SPLITS.equal,
-    savingsYears: null,
+    /** Years of monthly saving; null = until retirement. */
+    savingsYears: DEFAULT_SAVINGS_YEARS,
     assumptions: { ...DEFAULT_ASSUMPTIONS },
   };
 }
@@ -229,9 +241,10 @@ export function normalizeInput(raw = {}) {
     monthsPartner: clamp(num(c?.monthsPartner, 0), ...LIMITS.months),
   }));
 
-  const savingsYears = raw.savingsYears === null || raw.savingsYears === undefined || raw.savingsYears === ''
-    ? null
-    : clamp(Math.round(num(raw.savingsYears, 1)), 1, 50);
+  // undefined → the default period, null → until retirement.
+  let savingsYears = DEFAULT_SAVINGS_YEARS;
+  if (raw.savingsYears === null || raw.savingsYears === '') savingsYears = null;
+  else if (raw.savingsYears !== undefined) savingsYears = clamp(Math.round(num(raw.savingsYears, DEFAULT_SAVINGS_YEARS)), 1, 50);
 
   return {
     currentYear: Math.round(num(raw.currentYear, defaults.currentYear)),
@@ -246,14 +259,21 @@ export function normalizeInput(raw = {}) {
 }
 
 // ---------------------------------------------------------------------------
-// Small vector helpers – a loss is { income, occupational, public }
+// Small vector helpers. A loss has four parts, all valued today:
+//   income          lost salary, in today's money
+//   occupational    lost occupational pension premiums, as fund value today
+//   incomePension   lost inkomstpension rights, indexed to today
+//   premiumPension  lost premiepension rights, as fund value today
 // ---------------------------------------------------------------------------
 
-const zero = () => ({ income: 0, occupational: 0, public: 0 });
-const add = (a, b) => ({ income: a.income + b.income, occupational: a.occupational + b.occupational, public: a.public + b.public });
-const sub = (a, b) => ({ income: a.income - b.income, occupational: a.occupational - b.occupational, public: a.public - b.public });
-const scale = (a, k) => ({ income: a.income * k, occupational: a.occupational * k, public: a.public * k });
-const sum = (a) => a.income + a.occupational + a.public;
+const PARTS = ['income', 'occupational', 'incomePension', 'premiumPension'];
+const combine = (a, b, f) => Object.fromEntries(PARTS.map((k) => [k, f(a[k], b[k])]));
+const zero = () => combine({}, {}, () => 0);
+const add = (a, b) => combine(a, b, (x, y) => x + y);
+const sub = (a, b) => combine(a, b, (x, y) => x - y);
+const scale = (a, k) => combine(a, a, (x) => x * k);
+const sum = (a) => PARTS.reduce((acc, k) => acc + a[k], 0);
+const publicOf = (a) => a.incomePension + a.premiumPension;
 
 // ---------------------------------------------------------------------------
 // Context: timeline, base amounts and people
@@ -299,49 +319,65 @@ function buildPerson(p, ctx) {
   const retirementYear = Y + (A.retirementAge - p.age);
   const hasAgreement = p.agreement !== 'no';
 
+  const yearsToRetirement = Math.max(0, A.retirementAge - p.age);
   const person = {
     age: p.age,
     hasAgreement,
     retirementYear,
-    yearsToRetirement: Math.max(0, A.retirementAge - p.age),
+    yearsToRetirement,
     salaryAt: (t) => p.salary * Math.pow(1 + A.salaryGrowth, t - yRef),
     active: (t) => t < retirementYear,
     /** Nominal SEK at time t → today's money. */
     toToday: (t) => Math.pow(1 + A.inflation, Y - t),
-    /** Premium paid at t → pension capital at retirement, in today's money. */
-    growToRetirement: (t) => Math.pow(1 + A.pensionReturn, Math.max(0, retirementYear - t))
-      * Math.pow(1 + A.inflation, Y - Math.max(t, retirementYear)),
+    /** A fund premium paid at t → what it is worth in the pension account today. */
+    fundValueToday: (t) => Math.pow(1 + A.pensionReturn, Y - t),
+    /** Inkomstpension rights earned at t → their value today (income index). */
+    indexValueToday: (t) => Math.pow(1 + A.salaryGrowth, Y - t),
+    /** Value today → capital at retirement, in today's money. */
+    fundToRetirement: Math.pow((1 + A.pensionReturn) / (1 + A.inflation), yearsToRetirement),
+    indexToRetirement: Math.pow((1 + A.salaryGrowth) / (1 + A.inflation), yearsToRetirement),
     /** Occupational pension premium per month for monthly salary S. */
     occupational: (S, t) => (hasAgreement
       ? itpPremium(S, (A.itpThresholdIBB * ctx.ibbAt(t)) / 12, A)
       : A.noAgreementRate * S),
-    /** Public pension rights per month for monthly pensionable income S. */
-    publicRights: (S, t) => {
+    /** Pensionable income per month in the public system for monthly income S. */
+    pensionBase: (S, t) => {
       const cap = (A.publicPensionCapIBB * ctx.ibbAt(t)) / 12;
-      return A.publicPensionRate * Math.min(Math.max(0, S) * (1 - A.generalPensionFee), cap);
+      return Math.min(Math.max(0, S) * (1 - A.generalPensionFee), cap);
     },
   };
   person.salaryToday = person.salaryAt(Y) * person.toToday(Y);
+  /** Pension capital at retirement (today's money) for a loss valued today. */
+  person.atRetirement = (loss) => (loss.occupational + loss.premiumPension) * person.fundToRetirement
+    + loss.incomePension * person.indexToRetirement;
   return person;
 }
 
-/**
- * Pension loss for one month in which the pensionable salary drops from
- * `full` to `reduced` (occupational) and `publicReduced` (public pension,
- * where social insurance benefits count as income).
- */
-function pensionLoss(person, ctx, t, full, reduced, publicReduced = reduced, frac = 1) {
-  const grow = person.growToRetirement(t);
-  const occupational = (person.occupational(full, t) - person.occupational(reduced, t)) * grow * frac;
-  let pub = 0;
-  if (ctx.A.publicPension && !ctx.inChildYears(t)) {
-    pub = (person.publicRights(full, t) - person.publicRights(publicReduced, t)) * grow * frac;
-  }
-  return { occupational, public: pub };
+/** Add the public pension loss for `baseLoss` SEK of lost pensionable income at t. */
+function addPublicLoss(loss, person, ctx, t, baseLoss) {
+  const { A } = ctx;
+  if (!A.publicPension || ctx.inChildYears(t)) return;
+  loss.incomePension += A.incomePensionRate * baseLoss * person.indexValueToday(t);
+  loss.premiumPension += A.premiumPensionRate * baseLoss * person.fundValueToday(t);
 }
 
+/**
+ * Add the pension loss for `frac` months in which the pensionable salary drops
+ * from `full` to `reduced` (occupational) and `publicReduced` (public pension,
+ * where social insurance benefits count as income).
+ */
+function addPensionLoss(loss, person, ctx, t, full, reduced, publicReduced = reduced, frac = 1) {
+  loss.occupational += (person.occupational(full, t) - person.occupational(reduced, t))
+    * person.fundValueToday(t) * frac;
+  addPublicLoss(loss, person, ctx, t, (person.pensionBase(full, t) - person.pensionBase(publicReduced, t)) * frac);
+}
+
+/** Collects the figures behind a loss so the result can be explained. */
+const newTrace = () => ({ months: 0, salary: 0, days: 0, wage: 0 });
+
 // ---------------------------------------------------------------------------
-// Loss functions. Each returns { income, occupational, public }.
+// Loss functions. Each returns a loss vector valued today. The optional
+// `trace` collects months, days and salaries for the explanation.
 // ---------------------------------------------------------------------------
 
 function benefitDays(person, months, A) {
@@ -350,7 +386,7 @@ function benefitDays(person, months, A) {
 }
 
 /** Loss for `self` being home `mSelf` months with a child born at `birth`. */
-export function leaveLoss(self, other, mSelf, mOther, birth, ctx) {
+export function leaveLoss(self, other, mSelf, mOther, birth, ctx, trace) {
   const { A } = ctx;
   const loss = zero();
   if (mSelf <= 0) return loss;
@@ -381,6 +417,10 @@ export function leaveLoss(self, other, mSelf, mOther, birth, ctx) {
     const topIncome = A.topUpLevel * S;
 
     loss.income += (topFrac * Math.max(0, S - topIncome) + restFrac * Math.max(0, S - restIncome)) * self.toToday(t);
+    if (trace) {
+      trace.months += frac;
+      trace.salary += frac * S * self.toToday(t);
+    }
 
     // Pension: occupational premiums are based on the salary paid by the
     // employer (none during leave unless premiebefrielse applies). Benefits
@@ -388,21 +428,17 @@ export function leaveLoss(self, other, mSelf, mOther, birth, ctx) {
     const waivedFrac = clamp(waiverMonths - j, 0, frac);
     const unwaived = frac - waivedFrac;
     if (unwaived > 0) {
-      loss.occupational += self.occupational(S, t) * self.growToRetirement(t) * unwaived;
+      loss.occupational += self.occupational(S, t) * self.fundValueToday(t) * unwaived;
     }
-    if (A.publicPension && !ctx.inChildYears(t)) {
-      const grow = self.growToRetirement(t);
-      loss.public += (
-        topFrac * (self.publicRights(S, t) - self.publicRights(topIncome, t))
-        + restFrac * (self.publicRights(S, t) - self.publicRights(restIncome, t))
-      ) * grow;
-    }
+    addPublicLoss(loss, self, ctx, t,
+      topFrac * (self.pensionBase(S, t) - self.pensionBase(topIncome, t))
+      + restFrac * (self.pensionBase(S, t) - self.pensionBase(restIncome, t)));
   }
   return loss;
 }
 
 /** Loss for working `percent` % of full time during `years` from `start`. */
-export function partTimeLoss(self, percent, years, start, ctx) {
+export function partTimeLoss(self, percent, years, start, ctx, trace) {
   const loss = zero();
   const reduction = 1 - percent / 100;
   if (reduction <= 0 || years <= 0) return loss;
@@ -414,15 +450,17 @@ export function partTimeLoss(self, percent, years, start, ctx) {
     const S = self.salaryAt(t);
     const reduced = S * (1 - reduction);
     loss.income += frac * reduction * S * self.toToday(t);
-    const p = pensionLoss(self, ctx, t, S, reduced, reduced, frac);
-    loss.occupational += p.occupational;
-    loss.public += p.public;
+    addPensionLoss(loss, self, ctx, t, S, reduced, reduced, frac);
+    if (trace) {
+      trace.months += frac;
+      trace.salary += frac * S * self.toToday(t);
+    }
   }
   return loss;
 }
 
 /** Loss for taking `share` of the family's vab days. */
-export function vabLoss(self, share, ctx) {
+export function vabLoss(self, share, ctx, trace) {
   const { A } = ctx;
   const loss = zero();
   if (share <= 0) return loss;
@@ -440,16 +478,18 @@ export function vabLoss(self, share, ctx) {
       // Monthly averages over the year: the full deduction lowers the
       // occupational pension base; benefits are pensionable publicly.
       const deduction = (days * dailyWage) / 12;
-      const p = pensionLoss(self, ctx, t, S, S - deduction, S - yearlyLoss / 12, 12);
-      loss.occupational += p.occupational;
-      loss.public += p.public;
+      addPensionLoss(loss, self, ctx, t, S, S - deduction, S - yearlyLoss / 12, 12);
+      if (trace) {
+        trace.days += days;
+        trace.wage += days * dailyWage * self.toToday(t);
+      }
     }
   }
   return loss;
 }
 
 /** Full salary development loss for the parent who is home (share = 1). */
-export function careerLossFull(self, ctx) {
+export function careerLossFull(self, ctx, trace) {
   const { A } = ctx;
   const loss = zero();
   if (A.wagePenalty <= 0 || !ctx.births.length) return loss;
@@ -463,9 +503,11 @@ export function careerLossFull(self, ctx) {
     const S = self.salaryAt(t);
     const reduced = S * (1 - A.wagePenalty);
     loss.income += frac * A.wagePenalty * S * self.toToday(t);
-    const p = pensionLoss(self, ctx, t, S, reduced, reduced, frac);
-    loss.occupational += p.occupational;
-    loss.public += p.public;
+    addPensionLoss(loss, self, ctx, t, S, reduced, reduced, frac);
+    if (trace) {
+      trace.months += frac;
+      trace.salary += frac * S * self.toToday(t);
+    }
   }
   return loss;
 }
@@ -518,28 +560,24 @@ function annuityPayment(capital, yearlyRate, months) {
 }
 
 /**
- * Monthly saving during `years` that – including growth until retirement –
- * reaches `target` at retirement, plus the equivalent lump sum today.
- * Use a real return to get the answer in today's money.
+ * Two equivalent ways of paying `lumpSum`, an amount valued today: all at once,
+ * or as a fixed amount at the end of every month for `years` years. The monthly
+ * amount is the annuity with the same present value, so the receiver ends up
+ * with the same value as if the lump sum had been invested today at
+ * `yearlyReturn`.
  */
-export function savingsPlan(target, yearsToRetirement, years, yearlyReturn) {
-  const horizon = Math.max(1, yearsToRetirement);
-  const saveYears = clamp(years ?? horizon, 1, horizon);
-  const n = saveYears * 12;
+export function savingsPlan(lumpSum, years, yearlyReturn) {
+  const n = Math.max(1, Math.round(years * 12));
   const i = Math.pow(1 + yearlyReturn, 1 / 12) - 1;
-  const fvFactor = Math.abs(i) < 1e-12 ? n : (Math.pow(1 + i, n) - 1) / i;
-  const growthAfter = Math.pow(1 + yearlyReturn, horizon - saveYears);
-  return {
-    years: saveYears,
-    monthly: target / (fvFactor * growthAfter),
-    lumpSum: target / Math.pow(1 + yearlyReturn, horizon),
-    yearsToRetirement: horizon,
-  };
+  const monthly = Math.abs(i) < 1e-12 ? lumpSum / n : (lumpSum * i) / (1 - Math.pow(1 + i, -n));
+  return { lumpSum, years: n / 12, months: n, monthly, totalPaid: monthly * n };
 }
 
 // ---------------------------------------------------------------------------
 // Main entry point
 // ---------------------------------------------------------------------------
+
+const perUnit = (total, units) => (units > 0 ? total / units : null);
 
 export function calculate(rawInput) {
   const input = normalizeInput(rawInput);
@@ -549,7 +587,10 @@ export function calculate(rawInput) {
   const you = buildPerson(input.you, ctx);
   const partnerAgeOffset = input.partner.age - input.you.age;
   const partner = buildPerson(input.partner, ctx);
+  const people = { you, partner };
   const { principle } = input;
+  const traces = () => ({ leave: newTrace(), partTime: newTrace(), vab: newTrace(), career: newTrace() });
+  const trace = { you: traces(), partner: traces() };
 
   // 1. Föräldraledighet – per child
   let leave = { you: zero(), partner: zero(), compensation: zero() };
@@ -567,6 +608,8 @@ export function calculate(rawInput) {
       partner: add(leave.partner, r.partner),
       compensation: add(leave.compensation, r.compensation),
     };
+    leaveLoss(you, partner, child.monthsYou, child.monthsPartner, birth, ctx, trace.you.leave);
+    leaveLoss(partner, you, child.monthsPartner, child.monthsYou, birth, ctx, trace.partner.leave);
   });
 
   // 2. Deltid – starts after the first child's parental leave by default
@@ -589,6 +632,8 @@ export function calculate(rawInput) {
     ptPartner,
     principle,
   );
+  partTimeLoss(you, ptYou.percent, ptYou.years, ptYou.start, ctx, trace.you.partTime);
+  partTimeLoss(partner, ptPartner.percent, ptPartner.years, ptPartner.start, ctx, trace.partner.partTime);
 
   // 3. Vab
   const vab = compare(
@@ -598,14 +643,16 @@ export function calculate(rawInput) {
     1 - input.vabShareYou,
     principle,
   );
+  vabLoss(you, input.vabShareYou, ctx, trace.you.vab);
+  vabLoss(partner, 1 - input.vabShareYou, ctx, trace.partner.vab);
 
   // 4. Löneutveckling – scaled by each parent's share of the home time
   const homeYou = homeMonths(input.you, 'monthsYou', input.children);
   const homePartner = homeMonths(input.partner, 'monthsPartner', input.children);
   const homeTotal = homeYou.total + homePartner.total;
   const shareYou = homeTotal > 0 ? homeYou.total / homeTotal : 0.5;
-  const careerYouFull = careerLossFull(you, ctx);
-  const careerPartnerFull = careerLossFull(partner, ctx);
+  const careerYouFull = careerLossFull(you, ctx, trace.you.career);
+  const careerPartnerFull = careerLossFull(partner, ctx, trace.partner.career);
   const career = compare(
     (share) => scale(careerYouFull, share),
     (share) => scale(careerPartnerFull, share),
@@ -616,7 +663,8 @@ export function calculate(rawInput) {
 
   // Assemble the rows: salary parts first, then the pension parts.
   const parts = { leave, partTime, vab, career };
-  const pensionOf = (who, kind) => Object.values(parts).reduce((acc, part) => acc + part[who][kind], 0);
+  const totalOf = (who) => Object.values(parts).reduce((acc, part) => add(acc, part[who]), zero());
+  const totals = { you: totalOf('you'), partner: totalOf('partner'), compensation: totalOf('compensation') };
   const rows = [
     ...['leave', 'partTime', 'vab', 'career'].map((key) => ({
       key,
@@ -626,17 +674,17 @@ export function calculate(rawInput) {
     })),
     {
       key: 'occupationalPension',
-      amount: pensionOf('compensation', 'occupational'),
-      you: pensionOf('you', 'occupational'),
-      partner: pensionOf('partner', 'occupational'),
+      amount: totals.compensation.occupational,
+      you: totals.you.occupational,
+      partner: totals.partner.occupational,
     },
   ];
   if (A.publicPension) {
     rows.push({
       key: 'publicPension',
-      amount: pensionOf('compensation', 'public'),
-      you: pensionOf('you', 'public'),
-      partner: pensionOf('partner', 'public'),
+      amount: publicOf(totals.compensation),
+      you: publicOf(totals.you),
+      partner: publicOf(totals.partner),
     });
   }
 
@@ -644,31 +692,108 @@ export function calculate(rawInput) {
   const totalYou = rows.reduce((acc, r) => acc + r.you, 0);
   const totalPartner = rows.reduce((acc, r) => acc + r.partner, 0);
   const direction = total > EPSILON * 1000 ? 'toYou' : total < -EPSILON * 1000 ? 'toPartner' : 'even';
+  const beneficiary = direction === 'toPartner' ? partner : you;
+  const sign = direction === 'toPartner' ? -1 : 1;
 
-  // Pension capital (today's money) paid out as a monthly pension.
+  // Pension: value today → capital at retirement (today's money) → per month.
   const realPensionReturn = (1 + A.pensionReturn) / (1 + A.inflation) - 1;
   const pensionPerMonth = (capital) => annuityPayment(capital, realPensionReturn, A.payoutYears * 12);
-  const pensionCapital = (who) => pensionOf(who, 'occupational') + (A.publicPension ? pensionOf(who, 'public') : 0);
-  const beneficiary = direction === 'toPartner' ? partner : you;
-  const compensationPension = Math.abs(pensionCapital('compensation'));
+  const pensionSummary = (loss, person) => {
+    const atRetirement = Math.max(0, person.atRetirement(loss));
+    return {
+      valueToday: loss.occupational + publicOf(loss),
+      atRetirement,
+      perMonth: pensionPerMonth(atRetirement),
+    };
+  };
+
+  // Suggestion: the total is a value today, so it is the lump sum. The monthly
+  // amount is the same value spread over the chosen number of years.
+  const lumpSum = Math.abs(total);
+  const maxYears = Math.max(1, beneficiary.yearsToRetirement);
+  const plan = savingsPlan(lumpSum, clamp(input.savingsYears ?? maxYears, 1, maxYears), A.savingsReturn);
+
+  // The figures behind every part, for the step-by-step explanation.
+  const explainFor = (who) => {
+    const tr = trace[who];
+    const p = input[who];
+    const person = people[who];
+    const full = who === 'you' ? careerYouFull : careerPartnerFull;
+    const share = who === 'you' ? shareYou : 1 - shareYou;
+    const leaveLossPerMonth = perUnit(parts.leave[who].income, tr.leave.months);
+    const leaveSalary = perUnit(tr.leave.salary, tr.leave.months);
+    const wagePerDay = perUnit(tr.vab.wage, tr.vab.days);
+    const lossPerDay = perUnit(parts.vab[who].income, tr.vab.days);
+    return {
+      leave: {
+        months: tr.leave.months,
+        salary: leaveSalary ?? person.salaryToday,
+        benefit: leaveSalary === null ? null : leaveSalary - leaveLossPerMonth,
+        lossPerMonth: leaveLossPerMonth,
+        total: parts.leave[who].income,
+      },
+      partTime: {
+        percent: p.partTimePercent / 100,
+        years: tr.partTime.months / 12,
+        salary: perUnit(tr.partTime.salary, tr.partTime.months) ?? person.salaryToday,
+        lossPerMonth: perUnit(parts.partTime[who].income, tr.partTime.months),
+        total: parts.partTime[who].income,
+      },
+      vab: {
+        share: who === 'you' ? input.vabShareYou : 1 - input.vabShareYou,
+        days: tr.vab.days,
+        wagePerDay,
+        benefitPerDay: wagePerDay === null ? null : wagePerDay - lossPerDay,
+        lossPerDay,
+        total: parts.vab[who].income,
+      },
+      career: {
+        share,
+        full: full.income,
+        total: parts.career[who].income,
+      },
+      pension: {
+        leave: parts.leave[who].occupational + publicOf(parts.leave[who]),
+        partTime: parts.partTime[who].occupational + publicOf(parts.partTime[who]),
+        vab: parts.vab[who].occupational + publicOf(parts.vab[who]),
+        career: parts.career[who].occupational + publicOf(parts.career[who]),
+        ...pensionSummary(totals[who], person),
+      },
+    };
+  };
 
   return {
     input,
     rows,
+    /** Compensation valued today; positive = from the partner to you. */
     total,
     direction,
     losses: { you: totalYou, partner: totalPartner },
     pension: {
-      you: { capital: pensionCapital('you'), perMonth: pensionPerMonth(pensionCapital('you')) },
-      partner: { capital: pensionCapital('partner'), perMonth: pensionPerMonth(pensionCapital('partner')) },
-      compensation: { capital: compensationPension, perMonth: pensionPerMonth(compensationPension) },
+      you: pensionSummary(totals.you, you),
+      partner: pensionSummary(totals.partner, partner),
+      compensation: pensionSummary(scale(totals.compensation, sign), beneficiary),
     },
-    savings: savingsPlan(
-      Math.abs(total),
-      beneficiary.yearsToRetirement,
-      input.savingsYears,
-      (1 + A.savingsReturn) / (1 + A.inflation) - 1,
-    ),
+    savings: {
+      ...plan,
+      maxYears,
+      rate: A.savingsReturn,
+      yearsToRetirement: beneficiary.yearsToRetirement,
+      /** The lump sum invested until retirement, in today's money. */
+      valueAtRetirement: lumpSum
+        * Math.pow((1 + A.savingsReturn) / (1 + A.inflation), beneficiary.yearsToRetirement),
+    },
+    explain: {
+      you: explainFor('you'),
+      partner: explainFor('partner'),
+      /** How far beyond half you are in each part (negative = your partner). */
+      beyondHalf: {
+        leave: input.children.reduce((acc, c) => acc + (c.monthsYou - c.monthsPartner) / 2, 0),
+        partTime: (homeYou.partTime - homePartner.partTime) / 2,
+        vab: (trace.you.vab.days - trace.partner.vab.days) / 2,
+        career: shareYou - 0.5,
+      },
+    },
     facts: {
       firstBirthYear: input.children.length ? ctx.firstBirth : null,
       birthYears: ctx.births,

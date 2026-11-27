@@ -23,6 +23,7 @@ export function renderResults(root, ctx) {
       h('section', { class: 'card', id: 'result-breakdown', 'aria-labelledby': 'breakdown-title' }),
       h('section', { class: 'card', id: 'result-compare', 'aria-labelledby': 'compare-title' })),
     h('section', { class: 'card facts', id: 'result-facts', 'aria-labelledby': 'facts-title' }),
+    h('section', { class: 'card explain', id: 'result-explain', 'aria-labelledby': 'explain-title' }),
     renderAdjust(ctx),
     renderWays(),
     renderMethod(),
@@ -47,6 +48,7 @@ function fillDynamic(root, ctx, result) {
   replace(root.querySelector('#result-breakdown'), renderBreakdown(result));
   replace(root.querySelector('#result-compare'), renderCompare(result));
   replace(root.querySelector('#result-facts'), renderFacts(result));
+  replace(root.querySelector('#result-explain'), renderExplain(root, result));
   replace(root.querySelector('#sticky-summary'), renderSticky(result));
   syncPartTimePlaceholders(root, result);
 }
@@ -67,12 +69,15 @@ function directionText(result) {
   return t('result.even');
 }
 
+const SAVINGS_YEARS = [1, 3, 5, 10, 15, 20];
+
 function renderHero(ctx, result) {
   const { savings, pension } = result;
-  const amount = Math.abs(result.total);
   const even = result.direction === 'even';
+  const A = ctx.input.assumptions;
 
-  const savingsOptions = [5, 10, 15, 20].filter((n) => n < savings.yearsToRetirement);
+  const options = SAVINGS_YEARS.filter((n) => n < savings.maxYears);
+  const selected = options.includes(ctx.input.savingsYears) ? ctx.input.savingsYears : null;
   const select = h('select', {
     id: 'savings-years',
     class: 'select select--inline',
@@ -81,35 +86,58 @@ function renderHero(ctx, result) {
       ctx.changed();
     },
   },
-  savingsOptions.map((n) => h('option', { value: String(n), selected: ctx.input.savingsYears === n }, t('result.yearsOption', { n }))),
-  h('option', { value: 'retirement', selected: !savingsOptions.includes(ctx.input.savingsYears) }, t('result.untilRetirement', { n: savings.yearsToRetirement })));
+  options.map((n) => h('option', { value: String(n), selected: selected === n }, formatYears(n))),
+  h('option', { value: 'retirement', selected: selected === null }, t('result.untilRetirement', { n: savings.maxYears })));
+
+  // A link to a local file only works on this computer, and a page embedded in
+  // another page can neither be linked to nor printed – so those are not offered.
+  const embedded = window.self !== window.top;
+  const canShare = !embedded && window.location.protocol !== 'file:';
 
   return [
     h('div', { class: 'hero__main' },
       h('p', { class: 'eyebrow' }, t('result.eyebrow')),
       h('h1', { class: 'hero__direction', tabindex: '-1', 'data-autofocus': true }, directionText(result)),
-      even ? null : h('p', { class: `hero__amount hero__amount--${result.direction}` }, formatMoney(amount)),
+      even ? null : h('p', { class: `hero__amount hero__amount--${result.direction}` }, formatMoney(savings.lumpSum)),
       h('p', { class: 'hero__lead' }, even ? t('result.evenText') : t('result.lead')),
       h('div', { class: 'hero__actions' },
         h('a', { class: 'button button--primary', href: '#adjust', onclick: (e) => scrollToAdjust(e) }, t('actions.adjust')),
-        h('button', { type: 'button', class: 'button button--ghost button--small', id: 'copy-link', onclick: (e) => copyLink(e.currentTarget, ctx) }, t('actions.copy')),
-        h('button', { type: 'button', class: 'button button--ghost button--small', id: 'print', onclick: () => window.print() }, t('actions.print')),
+        canShare
+          ? h('button', { type: 'button', class: 'button button--ghost button--small', id: 'copy-link', onclick: (e) => copyLink(e.currentTarget, ctx) }, t('actions.copy'))
+          : null,
+        embedded
+          ? null
+          : h('button', { type: 'button', class: 'button button--ghost button--small', id: 'print', onclick: () => window.print() }, t('actions.print')),
         h('button', { type: 'button', class: 'button button--ghost button--small', id: 'restart', onclick: () => ctx.restart() }, t('actions.restart')))),
-    even ? null : h('div', { class: 'hero__savings' },
-      h('h2', { class: 'hero__savings-title' }, t('result.savingsTitle')),
-      h('p', { class: 'hero__monthly' }, t('result.monthly', { amount: formatMoney(savings.monthly) })),
-      h('div', { class: 'field field--inline' },
-        h('label', { for: 'savings-years', class: 'field__label' }, t('result.savingsPeriod')),
-        select),
-      h('p', { class: 'hero__note' }, t('result.monthlyText', {
-        years: formatNumber(savings.years),
-        rate: formatPercent(ctx.input.assumptions.savingsReturn, 1),
-      })),
-      h('p', { class: 'hero__note' }, t('result.lumpSum', { amount: formatMoney(savings.lumpSum) })),
+    even ? null : h('div', { class: 'suggest' },
+      h('h2', { class: 'suggest__title' }, t('suggest.title')),
+      h('div', { class: 'suggest__option' },
+        h('p', { class: 'suggest__label' }, t('suggest.lumpLabel')),
+        h('p', { class: 'suggest__value', id: 'suggest-lump' }, formatMoney(savings.lumpSum)),
+        h('p', { class: 'hero__note' }, t('suggest.lumpText'))),
+      h('p', { class: 'suggest__or' }, t('suggest.or')),
+      h('div', { class: 'suggest__option' },
+        h('p', { class: 'suggest__label' }, t('suggest.monthlyLabel')),
+        h('p', { class: 'suggest__value', id: 'suggest-monthly' }, t('result.monthly', { amount: formatMoney(savings.monthly) })),
+        h('div', { class: 'field field--inline' },
+          h('label', { for: 'savings-years', class: 'field__label' }, t('result.savingsPeriod')),
+          select),
+        h('p', { class: 'hero__note' }, t('suggest.monthlyText', {
+          total: formatMoney(savings.totalPaid),
+          years: formatYears(savings.years),
+          rate: formatPercent(A.savingsReturn, 1),
+        }))),
+      savings.yearsToRetirement > 0
+        ? h('p', { class: 'hero__note' }, t('suggest.growth', {
+          years: formatNumber(savings.yearsToRetirement),
+          amount: formatMoney(savings.valueAtRetirement),
+        }))
+        : null,
       pension.compensation.perMonth >= 1
         ? h('p', { class: 'hero__note' }, t('result.pensionMonthly', {
+          capital: formatMoney(pension.compensation.valueToday),
           amount: formatMoney(pension.compensation.perMonth),
-          years: formatNumber(ctx.input.assumptions.payoutYears),
+          years: formatNumber(A.payoutYears),
         }))
         : null),
   ];
@@ -129,7 +157,8 @@ async function copyLink(button, ctx) {
     await navigator.clipboard.writeText(url);
     button.textContent = t('actions.copied');
   } catch {
-    window.prompt(t('actions.copyFailed'), url);
+    ctx.showLink(url);
+    return;
   }
   setTimeout(() => { if (button.isConnected) button.textContent = original; }, 2500);
 }
@@ -281,6 +310,10 @@ function formatMonths(months) {
   return formatNumber(rounded, Number.isInteger(rounded) ? 0 : 1);
 }
 
+function formatYears(years) {
+  return `${formatMonths(years)} ${t(years === 1 ? 'unit.year' : 'unit.years')}`;
+}
+
 function signedCompensation(amount) {
   if (Math.abs(amount) < 0.5) return formatMoney(0);
   return `${formatMoney(Math.abs(amount))} ${t(amount < 0 ? 'breakdown.toPartner' : 'breakdown.toYou')}`;
@@ -312,6 +345,142 @@ function renderFacts(result) {
       })),
       item(t('facts.principle'), t(`principle.${input.principle}`))),
   ];
+}
+
+// ---------------------------------------------------------------------------
+// Step by step: the figures behind every part, with the family's own numbers
+// ---------------------------------------------------------------------------
+
+const EXPLAIN_FORMATS = {
+  money: (v) => formatMoney(v),
+  perMonth: (v) => formatMoneyPerMonth(v),
+  months: (v) => `${formatMonths(v)} ${t('unit.months')}`,
+  years: (v) => formatYears(v),
+  days: (v) => `${formatMonths(v)} ${t('unit.days')}`,
+  percent: (v) => formatPercent(v),
+};
+
+/** [key in result.explain[who][part], format, is the sum of the part] */
+const EXPLAIN_PARTS = [
+  ['leave', [['months', 'months'], ['salary', 'perMonth'], ['benefit', 'perMonth'], ['lossPerMonth', 'perMonth'], ['total', 'money', true]]],
+  ['partTime', [['percent', 'percent'], ['years', 'years'], ['salary', 'perMonth'], ['lossPerMonth', 'perMonth'], ['total', 'money', true]]],
+  ['vab', [['share', 'percent'], ['days', 'days'], ['wagePerDay', 'money'], ['benefitPerDay', 'money'], ['lossPerDay', 'money'], ['total', 'money', true]]],
+  ['career', [['share', 'percent'], ['full', 'money'], ['total', 'money', true]]],
+  ['pension', [['leave', 'money'], ['partTime', 'money'], ['vab', 'money'], ['career', 'money'], ['valueToday', 'money', true], ['atRetirement', 'money'], ['perMonth', 'perMonth']]],
+];
+
+function explainNote(part, result, row) {
+  const { explain, input } = result;
+  const { amount } = row;
+  if (Math.abs(amount) < 0.5) return t('explain.none');
+  const who = amount > 0 ? 'you' : 'partner';
+  const values = {
+    amount: formatMoney(Math.abs(amount)),
+    to: t(amount > 0 ? 'breakdown.toYou' : 'breakdown.toPartner'),
+  };
+  if (input.principle === 'equal') {
+    return t('explain.equal', { ...values, a: formatMoney(row.you), b: formatMoney(row.partner) });
+  }
+  if (part === 'pension') return t('explain.pension.note', values);
+  const beyond = explain.beyondHalf[part] * (amount > 0 ? 1 : -1);
+  if (!(beyond > 0)) return t('explain.generic', values);
+  const beyondText = {
+    leave: () => EXPLAIN_FORMATS.months(beyond),
+    partTime: () => '',
+    vab: () => EXPLAIN_FORMATS.days(beyond),
+    career: () => formatNumber(beyond * 100, 0),
+  }[part]();
+  return t(`explain.${part}.note.${who}`, { ...values, beyond: beyondText });
+}
+
+function renderExplain(root, result) {
+  const { explain, input, savings } = result;
+  const A = input.assumptions;
+  const byKey = Object.fromEntries(result.rows.map((r) => [r.key, r]));
+  const pensionRows = ['occupationalPension', 'publicPension'].map((key) => byKey[key]).filter(Boolean);
+  const rowFor = (part) => (part === 'pension'
+    ? {
+      amount: pensionRows.reduce((acc, r) => acc + r.amount, 0),
+      you: pensionRows.reduce((acc, r) => acc + r.you, 0),
+      partner: pensionRows.reduce((acc, r) => acc + r.partner, 0),
+    }
+    : byKey[part]);
+
+  const labelValues = {
+    days: formatNumber(A.vabDaysPerChildYear),
+    from: formatNumber(A.vabFromAge),
+    to: formatNumber(A.vabToAge),
+    penalty: formatPercent(A.wagePenalty, 1),
+    period: A.wagePenaltyPermanent
+      ? t('explain.career.permanent')
+      : t('explain.career.years', { n: formatNumber(A.wagePenaltyYears) }),
+    years: formatNumber(A.payoutYears),
+  };
+  const cell = (value, format) => h('td', { class: 'num' },
+    value === null || value === undefined ? '–' : EXPLAIN_FORMATS[format](value));
+
+  // Keep the parts the reader has opened when the result is re-rendered.
+  const open = new Set([...root.querySelectorAll('#result-explain details[open]')].map((d) => d.dataset.part));
+
+  const part = (key, title, amountText, content) => h('details', { class: 'explain__part', dataset: { part: key }, open: open.has(key) },
+    h('summary', {},
+      h('span', { class: 'explain__name' }, title),
+      h('span', { class: 'explain__amount num' }, amountText)),
+    content);
+
+  const parts = EXPLAIN_PARTS.map(([key, lines]) => {
+    const row = rowFor(key);
+    return part(key, t(key === 'pension' ? 'explain.pension.title' : `row.${key}`), signedCompensation(row.amount), [
+      h('div', { class: 'table-scroll' },
+        h('table', { class: 'data-table explain__table' },
+          h('thead', {}, h('tr', {},
+            h('td', {}),
+            h('th', { scope: 'col', class: 'num' }, t('compare.you')),
+            h('th', { scope: 'col', class: 'num' }, t('compare.partner')))),
+          h('tbody', {}, lines.map(([field, format, isTotal]) => h('tr', { class: isTotal ? 'is-total' : null },
+            h('th', { scope: 'row' }, t(`explain.${key}.${field}`, labelValues)),
+            cell(explain.you[key][field], format),
+            cell(explain.partner[key][field], format)))))),
+      h('p', { class: 'explain__note' }, h('strong', {}, `${t('explain.compensation')}: `), explainNote(key, result, row)),
+    ]);
+  });
+
+  const suggestionLines = [
+    ['lumpSum', formatMoney(savings.lumpSum), true],
+    ['period', `${formatYears(savings.years)} (${formatNumber(savings.months)} ${t('unit.months')})`],
+    ['rate', formatPercent(savings.rate, 1)],
+    ['monthly', formatMoneyPerMonth(savings.monthly), true],
+    ['totalPaid', formatMoney(savings.totalPaid)],
+    ['atRetirement', formatMoney(savings.valueAtRetirement)],
+  ];
+  const suggestion = result.direction === 'even' ? null : part('suggestion', t('explain.suggest.title'),
+    `${formatMoney(savings.lumpSum)} · ${formatMoneyPerMonth(savings.monthly)}`, [
+      h('div', { class: 'table-scroll' },
+        h('table', { class: 'data-table explain__table' },
+          h('tbody', {}, suggestionLines.map(([field, value, isTotal]) => h('tr', { class: isTotal ? 'is-total' : null },
+            h('th', { scope: 'row' }, t(`explain.suggest.${field}`, { years: formatNumber(savings.yearsToRetirement) })),
+            h('td', { class: 'num' }, value)))))),
+      h('p', { class: 'explain__note' }, t('explain.suggest.note')),
+    ]);
+
+  return [
+    h('h2', { class: 'card__title', id: 'explain-title' }, t('explain.title')),
+    h('p', { class: 'card__sub' }, t('explain.sub')),
+    h('div', { class: 'explain__parts' }, parts, suggestion),
+  ];
+}
+
+// Print everything, including the parts that are folded.
+if (typeof window !== 'undefined') {
+  let folded = [];
+  window.addEventListener('beforeprint', () => {
+    folded = [...document.querySelectorAll('details:not([open])')];
+    folded.forEach((d) => { d.open = true; });
+  });
+  window.addEventListener('afterprint', () => {
+    folded.forEach((d) => { d.open = false; });
+    folded = [];
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -348,7 +517,7 @@ function observeHero(root) {
 // Adjust form – rendered once, edits update the result live
 // ---------------------------------------------------------------------------
 
-function numberField({ id = uid('n'), label, value, min, max, step = 1, onValue, placeholder, format = false, unit }) {
+export function numberField({ id = uid('n'), label, value, min, max, step = 1, onValue, placeholder, format = false, unit }) {
   const input = h('input', {
     id,
     class: 'input',
@@ -516,7 +685,7 @@ function childFields(ctx, child, index) {
     }, t('adjust.removeChild')));
 }
 
-const ASSUMPTION_GROUPS = [
+export const ASSUMPTION_GROUPS = [
   ['assumptions.groupGeneral', [
     { key: 'inflation', percent: true, step: 0.1, max: 20 },
     { key: 'salaryGrowth', percent: true, step: 0.1, max: 20 },
@@ -550,7 +719,7 @@ const ASSUMPTION_GROUPS = [
   ]],
 ];
 
-function assumptionField(ctx, def) {
+export function assumptionField(ctx, def) {
   const A = ctx.input.assumptions;
   const id = `a-${def.key}`;
   const label = t(`a.${def.key}`, def.label ?? {});
@@ -680,6 +849,7 @@ function renderMethod() {
     ['career', ['text']],
     ['pension', ['text1', 'text2']],
     ['money', ['text']],
+    ['suggestion', ['text']],
     ['limits', ['text']],
     ['sources', ['text']],
   ];

@@ -797,6 +797,186 @@ main:focus {
   border-top: 1px solid var(--line);
 }
 
+.question__switch {
+  text-align: center;
+  font-size: 0.92rem;
+}
+
+.link-button {
+  background: none;
+  border: 0;
+  padding: 4px 0;
+  color: var(--ink-2);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  color: var(--ink);
+}
+
+.icon-button--small {
+  width: 36px;
+  height: 36px;
+  font-size: 1rem;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Single-page form                                                         */
+/* ------------------------------------------------------------------------ */
+
+.form-page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 0 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.form-page__head {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.form-page__head h1 {
+  font-size: clamp(1.7rem, 3.5vw, 2.3rem);
+  outline: none;
+}
+
+.form-card {
+  padding: 4px 32px;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: 16px 40px;
+  padding: 28px 0;
+  border-top: 1px solid var(--line);
+}
+
+.form-row:first-child {
+  border-top: 0;
+}
+
+.form-row__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.form-row__title {
+  font-size: 1.1rem;
+  line-height: 1.3;
+  padding-top: 6px;
+}
+
+.form-row__sub {
+  color: var(--ink-2);
+  font-size: 0.92rem;
+  margin-top: 6px;
+  max-width: 44ch;
+}
+
+.form-row__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.form-page__more {
+  color: var(--muted);
+  font-size: 0.9rem;
+  padding: 0 4px;
+}
+
+.form-summary {
+  position: sticky;
+  bottom: 12px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  background: var(--button);
+  color: var(--button-ink);
+  border-radius: 22px;
+  box-shadow: var(--shadow);
+  padding: 14px 14px 14px 24px;
+}
+
+.form-summary__text {
+  flex: 1 1 260px;
+  min-width: 0;
+}
+
+.form-summary__label {
+  font-size: 0.9rem;
+  opacity: 0.85;
+}
+
+.form-summary__amount strong {
+  font-size: 1.4rem;
+  letter-spacing: -0.01em;
+}
+
+.form-summary__button {
+  flex: none;
+  background: var(--button-ink);
+  color: var(--button);
+  border: 0;
+}
+
+@media (max-width: 760px) {
+  .form-card {
+    padding: 0 20px;
+  }
+
+  .form-row {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 22px 0;
+  }
+
+  .form-summary {
+    flex-wrap: nowrap;
+    gap: 12px;
+    padding: 10px 10px 10px 16px;
+    border-radius: 18px;
+  }
+
+  .form-summary__text {
+    flex: 1 1 0;
+  }
+
+  .form-summary__label {
+    font-size: 0.8rem;
+    line-height: 1.3;
+  }
+
+  .form-summary__amount {
+    font-size: 0.9rem;
+    line-height: 1.35;
+  }
+
+  .form-summary__amount strong {
+    font-size: 1.15rem;
+  }
+
+  .form-summary__button {
+    min-height: 44px;
+    padding: 0 16px;
+  }
+}
+
 .part-time {
   display: flex;
   flex-direction: column;
@@ -869,6 +1049,14 @@ main:focus {
 .dialog__title {
   font-size: 1.35rem;
   padding-right: 52px;
+}
+
+.dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
 }
 
 .fact {
@@ -963,26 +1151,50 @@ main:focus {
   margin-top: 12px;
 }
 
-.hero__savings {
+.suggest {
   display: flex;
   flex-direction: column;
   gap: 10px;
   background: var(--surface-2);
   border-radius: 18px;
-  padding: 22px 24px;
+  padding: 22px;
   align-self: start;
 }
 
-.hero__savings-title {
+.suggest__title {
   font-size: 1rem;
   font-weight: 600;
   color: var(--ink-2);
 }
 
-.hero__monthly {
-  font-size: 1.9rem;
+.suggest__option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+
+.suggest__label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.suggest__value {
+  font-size: 1.7rem;
   font-weight: 700;
   letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.suggest__or {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1;
 }
 
 .hero__note {
@@ -1011,8 +1223,8 @@ main:focus {
     flex: 1 1 auto;
   }
 
-  .hero__savings {
-    padding: 18px;
+  .suggest {
+    padding: 16px;
   }
 }
 
@@ -1289,6 +1501,100 @@ main:focus {
 .data-table tfoot td {
   font-weight: 700;
   border-bottom: 0;
+}
+
+.data-table tr.is-total th,
+.data-table tr.is-total td {
+  font-weight: 700;
+}
+
+/* Step by step */
+.explain__parts {
+  margin-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.explain__part {
+  border-bottom: 1px solid var(--line);
+}
+
+.explain__part > summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  cursor: pointer;
+  padding: 14px 4px;
+  font-weight: 600;
+  list-style: none;
+}
+
+.explain__part > summary::-webkit-details-marker {
+  display: none;
+}
+
+.explain__name::before {
+  content: "+";
+  display: inline-block;
+  width: 1.2em;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.explain__part[open] .explain__name::before {
+  content: "−";
+}
+
+.explain__amount {
+  color: var(--ink-2);
+  font-weight: 600;
+  text-align: right;
+}
+
+.explain__part > .table-scroll {
+  margin-top: 0;
+}
+
+.explain__table .num {
+  width: 9.5rem;
+}
+
+.explain__table th[scope="row"] {
+  font-weight: 400;
+  white-space: normal;
+  min-width: 14rem;
+}
+
+.explain__table tr.is-total th[scope="row"] {
+  font-weight: 700;
+}
+
+@media (max-width: 560px) {
+  .explain__table {
+    font-size: 0.82rem;
+  }
+
+  .explain__table th,
+  .explain__table td {
+    padding: 8px 4px;
+  }
+
+  .explain__table .num {
+    width: 5.6rem;
+    white-space: normal;
+  }
+
+  .explain__table th[scope="row"] {
+    min-width: 7rem;
+  }
+}
+
+.explain__note {
+  color: var(--ink-2);
+  font-size: 0.92rem;
+  padding: 12px 10px 18px;
+  max-width: 78ch;
 }
 
 /* Facts */
@@ -1638,6 +1944,7 @@ main:focus {
   .site-header .lang-toggle,
   .skip-link,
   .hero__actions,
+  .form-summary__button,
   .adjust,
   .sticky-summary,
   .tooltip,
